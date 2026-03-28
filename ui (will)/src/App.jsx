@@ -106,7 +106,7 @@ export default function App() {
               transition: 'transform 0.05s, box-shadow 0.05s',
             }}
           >
-            Company Setup
+            Sales Agent Setup
           </button>
         </div>
       </aside>
@@ -157,7 +157,7 @@ export default function App() {
           </div>
         </div>
 
-        <div style={{ padding: '24px 28px', maxWidth: 1080 }}>
+        <div style={{ padding: '24px 28px', maxWidth: 1200 }}>
           {view === 'dashboard' && <Dashboard onNavigate={setView} />}
           {view === 'prospects' && <ProspectTable onSelect={handleSelectProspect} />}
           {view === 'calls' && <CallCenter />}
