@@ -52,6 +52,8 @@ export async function createRetellVoiceAgent(config) {
   const agentName = `${config.company_identity.company_name} — ${config.company_identity.product_name} Outbound`;
   const voiceId = config.voice_id || '11labs-Adrian';
 
+  const webhookUrl = process.env.WEBHOOK_URL;
+
   const agentPayload = {
     voice_id: voiceId,
     response_engine: {
@@ -64,6 +66,7 @@ export async function createRetellVoiceAgent(config) {
     backchannel_frequency: 0.5,
     responsiveness: 0.7,
     interruption_sensitivity: 0.6,
+    ...(webhookUrl && { webhook_url: webhookUrl }),
   };
 
   const agentRes = await fetch(`${RETELL_BASE}/create-agent`, {

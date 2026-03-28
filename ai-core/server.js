@@ -255,6 +255,150 @@ app.post('/api/session/:sessionId/message', async (req, res) => {
   }
 });
 
+// ─── Retell Webhook — save completed calls + transcripts ─────────────────────
+
+const RETELL_API_KEY = process.env.RETELL_API_KEY;
+const RETELL_HEADERS = {
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${RETELL_API_KEY}`,
+};
+
+function callToRow(call) {
+  const dynVars = call.retell_llm_dynamic_variables || {};
+  return {
+    call_id: call.call_id,
+    agent_id: call.agent_id,
+    agent_name: call.agent_name || null,
+    call_status: call.call_status,
+    call_type: call.call_type,
+    direction: call.direction || null,
+    from_number: call.from_number || null,
+    to_number: call.to_number || null,
+    duration_ms: call.duration_ms || null,
+    transcript: call.transcript || null,
+    transcript_object: call.transcript_object || null,
+    recording_url: call.recording_url || null,
+    call_analysis: call.call_analysis || null,
+    disconnection_reason: call.disconnection_reason || null,
+    customer_name: dynVars.customer_name || call.metadata?.customer_name || null,
+    customer_email: dynVars.customer_email || call.metadata?.customer_email || null,
+    prospect_company: dynVars.prospect_company || call.metadata?.prospect_company || null,
+    lead_source: dynVars.lead_source || call.metadata?.lead_source || null,
+    metadata: call.metadata || {},
+    collected_variables: call.collected_dynamic_variables || {},
+    call_cost: call.call_cost || null,
+    start_timestamp: call.start_timestamp || null,
+    end_timestamp: call.end_timestamp || null,
+  };
+}
+
+// Retell sends POST here when calls end / are analyzed
+app.post('/api/webhook/retell', async (req, res) => {
+  const { event, call } = req.body;
+
+  if (!call?.call_id) return res.status(400).json({ error: 'Missing call data' });
+
+  if (['call_ended', 'call_analyzed'].includes(event)) {
+    try {
+      const row = callToRow(call);
+      const { error } = await supabase
+        .from('calls')
+        .upsert(row, { onConflict: 'call_id' });
+
+      if (error) console.error('Webhook save error:', error.message);
+      else console.log(`[webhook] ${event}: ${call.call_id} saved`);
+    } catch (err) {
+      console.error('Webhook error:', err.message);
+    }
+  }
+
+  res.status(200).send();
+});
+
+// ─── Call management endpoints ───────────────────────────────────────────────
+
+// List recent calls from the database
+app.get('/api/calls', async (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  const { data, error } = await supabase
+    .from('calls')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+// Get a single call with full transcript
+app.get('/api/calls/:callId', async (req, res) => {
+  const { callId } = req.params;
+
+  // Check DB first
+  const { data } = await supabase
+    .from('calls')
+    .select('*')
+    .eq('call_id', callId)
+    .single();
+
+  if (data) return res.json(data);
+
+  // Fallback: fetch from Retell API directly
+  if (!RETELL_API_KEY) return res.status(404).json({ error: 'Call not found' });
+
+  try {
+    const retellRes = await fetch(
+      `https://api.retellai.com/v2/get-call/${callId}`,
+      { headers: RETELL_HEADERS }
+    );
+    if (!retellRes.ok) return res.status(retellRes.status).json({ error: 'Call not found in Retell' });
+
+    const call = await retellRes.json();
+    res.json(callToRow(call));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Manually sync recent calls from Retell API into the database
+app.post('/api/calls/sync', async (req, res) => {
+  if (!RETELL_API_KEY) return res.status(500).json({ error: 'RETELL_API_KEY not set' });
+
+  try {
+    const retellRes = await fetch('https://api.retellai.com/v2/list-calls', {
+      method: 'POST',
+      headers: RETELL_HEADERS,
+      body: JSON.stringify({
+        sort_order: 'descending',
+        limit: parseInt(req.query.limit) || 50,
+      }),
+    });
+
+    if (!retellRes.ok) {
+      const err = await retellRes.text();
+      return res.status(retellRes.status).json({ error: err });
+    }
+
+    const calls = await retellRes.json();
+    let saved = 0;
+
+    for (const call of calls) {
+      if (call.call_status !== 'ended') continue;
+
+      const row = callToRow(call);
+      const { error } = await supabase
+        .from('calls')
+        .upsert(row, { onConflict: 'call_id' });
+
+      if (!error) saved++;
+    }
+
+    res.json({ synced: saved, total: calls.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3000;
