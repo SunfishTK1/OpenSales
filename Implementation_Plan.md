@@ -45,10 +45,10 @@ research → outreach → responded → discovery_call → high_intent → demo 
 
 ```
 OpenSales/
-├── ui/          ← Person 1: Frontend dashboard
-├── ai-core/     ← Person 2: AI interrogation + agent logic
-├── comms/       ← Person 3: Email engine + communication tracking
-├── tools/       ← Person 4: CRM backend + calendar + tool calls
+├── ui/          ← Person 1: Frontend dashboard (William)
+├── ai-core/     ← Person 2: AI interrogation + agent logic (Dhiren)
+├── comms/       ← Person 3: Email engine + communication tracking (Thomas)
+├── tools/       ← Person 4: CRM backend + calendar + tool calls (Hana)
 └── supabase/    ← Shared: schema migration (set up together in first 15 min)
 ```
 
