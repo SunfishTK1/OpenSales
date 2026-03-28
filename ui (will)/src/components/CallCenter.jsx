@@ -61,15 +61,18 @@ function TranscriptView({ transcript, plainTranscript, isLive, transcriptEndRef 
     return (
       <div style={{ padding: 32, textAlign: 'center', color: '#71717a', fontSize: 12, fontWeight: 500 }}>
         {isLive ? (
-          <div>
-            <div style={{ marginBottom: 8, fontSize: 11, color: '#71717a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Waiting for conversation...</div>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
-              {[0,1,2].map(i => (
-                <div key={i} style={{
-                  width: 6, height: 6, borderRadius: '50%', background: '#09090b',
-                  animation: 'liveDot 1.2s infinite', animationDelay: `${i * 0.2}s`,
-                }} />
-              ))}
+          <div style={{ padding: '8px 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <span style={{
+                width: 10, height: 10, borderRadius: '50%', background: '#16a34a',
+                display: 'inline-block', animation: 'liveDot 1.2s infinite',
+              }} />
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#09090b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Call in progress
+              </span>
+            </div>
+            <div style={{ fontSize: 11, color: '#71717a', fontWeight: 500, lineHeight: 1.5 }}>
+              Transcript will appear once the call ends.
             </div>
           </div>
         ) : 'No transcript available.'}
@@ -381,14 +384,14 @@ export default function CallCenter() {
                   </div>
                 </div>
                 {!callEnded && (
-                  <div style={{ fontSize: 10, color: '#71717a', fontWeight: 500 }}>Polling every 2s</div>
+                  <div style={{ fontSize: 10, color: '#71717a', fontWeight: 500 }}>Monitoring</div>
                 )}
               </div>
 
               <div style={{ fontSize: 9, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                Live Transcript
+                Transcript
                 {!callEnded && (
-                  <span style={{ fontSize: 9, fontWeight: 700, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.06em' }}>● Streaming</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.06em' }}>● Live</span>
                 )}
               </div>
               <div style={{
