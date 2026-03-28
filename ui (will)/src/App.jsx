@@ -17,6 +17,23 @@ export default function App() {
   const [view, setView] = useState('dashboard')
   const [selectedProspect, setSelectedProspect] = useState(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState(null)
+
+  async function handleSync() {
+    setSyncing(true)
+    setSyncMsg(null)
+    try {
+      const res = await fetch('http://localhost:3001/sync/calls')
+      const data = await res.json()
+      setSyncMsg(`Synced ${data.new_calls_synced} new call${data.new_calls_synced === 1 ? '' : 's'}`)
+    } catch {
+      setSyncMsg('Sync failed')
+    } finally {
+      setSyncing(false)
+      setTimeout(() => setSyncMsg(null), 3000)
+    }
+  }
 
   function handleSelectProspect(p) {
     setSelectedProspect(p)
@@ -89,12 +106,30 @@ export default function App() {
           <div style={{ fontSize: 13.5, fontWeight: 600, color: '#09090b' }}>
             {NAV.find(n => n.id === view)?.label}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{
-              width: 7, height: 7, borderRadius: '50%', background: '#22c55e',
-              boxShadow: '0 0 0 2px #dcfce7'
-            }} />
-            <span style={{ fontSize: 12, color: '#71717a' }}>Live</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {syncMsg && (
+              <span style={{ fontSize: 12, color: syncMsg.includes('failed') ? '#ef4444' : '#22c55e', fontWeight: 500 }}>
+                {syncMsg}
+              </span>
+            )}
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              style={{
+                padding: '5px 12px', borderRadius: 6, border: '1px solid #27272a',
+                background: syncing ? '#18181b' : '#09090b', color: syncing ? '#71717a' : '#fafafa',
+                fontSize: 12, fontWeight: 500, cursor: syncing ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {syncing ? 'Syncing...' : 'Sync Calls'}
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{
+                width: 7, height: 7, borderRadius: '50%', background: '#22c55e',
+                boxShadow: '0 0 0 2px #dcfce7'
+              }} />
+              <span style={{ fontSize: 12, color: '#71717a' }}>Live</span>
+            </div>
           </div>
         </div>
 
