@@ -361,10 +361,20 @@
 
   // ── TTS playback ──
   let currentAudio = null;
+  let ttsPlaying = false;
+
+  function stopTTS() {
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      if (currentAudio._url) URL.revokeObjectURL(currentAudio._url);
+      currentAudio = null;
+    }
+    ttsPlaying = false;
+  }
 
   async function speak(text) {
-    // Stop any currently playing audio
-    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+    stopTTS();
 
     try {
       const res = await fetch('/api/speak', {
@@ -372,13 +382,16 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
       });
-      if (!res.ok) return; // silently skip if TTS fails
+      if (!res.ok) return;
 
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
       currentAudio = new Audio(url);
-      currentAudio.onended = () => { URL.revokeObjectURL(url); currentAudio = null; };
-      currentAudio.play();
+      currentAudio._url = url;
+      ttsPlaying = true;
+      currentAudio.onended = () => { stopTTS(); };
+      currentAudio.onerror = () => { stopTTS(); };
+      currentAudio.play().catch(() => { stopTTS(); });
     } catch { /* TTS failure shouldn't break the chat */ }
   }
 
@@ -423,7 +436,7 @@
   function setInputEnabled(enabled) {
     document.getElementById('user-input').disabled = !enabled;
     document.getElementById('send-btn').disabled   = !enabled;
-    document.getElementById('mic-btn').disabled    = !enabled;
+    // Mic button stays enabled so user can always skip TTS
   }
 
   async function startSession() {
@@ -456,8 +469,9 @@
     const text  = input.value.trim();
     if (!text) return;
 
-    // Stop voice if active before sending
+    // Stop voice and TTS before sending
     stopVoice();
+    stopTTS();
 
     input.value = '';
     input.style.height = 'auto';
@@ -525,98 +539,106 @@
     this.style.height = Math.min(this.scrollHeight, 120) + 'px';
   });
 
-  // ── Live voice streaming (Web Speech API) ──
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  // ── Voice recording (MediaRecorder + Whisper) ──
   const micBtn      = document.getElementById('mic-btn');
   const voiceStatus = document.getElementById('voice-status');
   const voiceText   = document.getElementById('voice-text');
   const userInput   = document.getElementById('user-input');
 
-  let recognition   = null;
-  let isListening   = false;
-  let committedText = ''; // finalized words so far this session
+  let mediaRecorder = null;
+  let audioChunks   = [];
+  let isRecording   = false;
+  let micStream     = null;
 
   function stopVoice() {
-    if (recognition && isListening) {
-      recognition.stop();
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop();
     }
   }
 
-  if (!SpeechRecognition) {
-    micBtn.title = 'Live voice not supported in this browser (use Chrome)';
-    micBtn.style.opacity = '0.4';
-    micBtn.disabled = true;
-  } else {
-    micBtn.addEventListener('click', () => {
-      if (isListening) {
-        stopVoice();
-      } else {
-        startVoice();
+  micBtn.addEventListener('click', async () => {
+    // Always stop TTS first
+    stopTTS();
+
+    if (isRecording) {
+      // Stop recording → transcribe
+      mediaRecorder.stop();
+    } else {
+      // Start recording
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioChunks = [];
+        mediaRecorder = new MediaRecorder(micStream, { mimeType: 'audio/webm' });
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunks.push(e.data);
+        };
+
+        mediaRecorder.onstart = () => {
+          isRecording = true;
+          micBtn.classList.add('listening');
+          micBtn.textContent = '⏹';
+          voiceStatus.classList.add('listening');
+          voiceText.textContent = 'Recording… click ⏹ when done';
+          userInput.classList.add('live');
+          userInput.placeholder = 'Speaking…';
+        };
+
+        mediaRecorder.onstop = async () => {
+          isRecording = false;
+          micBtn.classList.remove('listening');
+          micBtn.textContent = '🎤';
+          userInput.classList.remove('live');
+          userInput.placeholder = 'Type your answer or click 🎤 to speak…';
+
+          // Stop mic access
+          micStream.getTracks().forEach(t => t.stop());
+          micStream = null;
+
+          if (audioChunks.length === 0) {
+            voiceStatus.classList.remove('listening');
+            voiceText.textContent = '';
+            return;
+          }
+
+          // Send to Whisper for transcription
+          voiceText.textContent = 'Transcribing…';
+          const blob = new Blob(audioChunks, { type: 'audio/webm' });
+          const form = new FormData();
+          form.append('audio', blob, 'recording.webm');
+
+          try {
+            const res = await fetch('/api/transcribe', { method: 'POST', body: form });
+            const data = await res.json();
+
+            voiceStatus.classList.remove('listening');
+
+            if (data.text) {
+              // Append transcript to input
+              const prev = userInput.value.trim();
+              userInput.value = prev ? prev + ' ' + data.text : data.text;
+              userInput.style.height = 'auto';
+              userInput.style.height = Math.min(userInput.scrollHeight, 120) + 'px';
+              voiceText.textContent = '';
+              userInput.focus();
+            } else {
+              voiceText.textContent = data.error || 'No speech detected';
+              setTimeout(() => { voiceText.textContent = ''; }, 3000);
+            }
+          } catch (err) {
+            voiceStatus.classList.remove('listening');
+            voiceText.textContent = 'Transcription failed: ' + err.message;
+            setTimeout(() => { voiceText.textContent = ''; }, 3000);
+          }
+        };
+
+        mediaRecorder.start();
+      } catch (err) {
+        voiceText.textContent = 'Mic access denied — check browser permissions';
+        setTimeout(() => { voiceText.textContent = ''; }, 3000);
       }
-    });
-  }
-
-  function startVoice() {
-    recognition = new SpeechRecognition();
-    recognition.continuous      = true;   // keep listening until stopped
-    recognition.interimResults  = true;   // show words live as spoken
-    recognition.lang            = 'en-US';
-
-    committedText = userInput.value; // preserve anything already typed
-
-    recognition.onstart = () => {
-      isListening = true;
-      micBtn.classList.add('listening');
-      micBtn.textContent = '⏹';
-      voiceStatus.classList.add('listening');
-      voiceText.textContent = 'Listening…';
-      userInput.classList.add('live');
-    };
-
-    recognition.onresult = (e) => {
-      let interim = '';
-      let newCommitted = committedText;
-
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const transcript = e.results[i][0].transcript;
-        if (e.results[i].isFinal) {
-          newCommitted += (newCommitted ? ' ' : '') + transcript.trim();
-        } else {
-          interim = transcript;
-        }
-      }
-
-      committedText = newCommitted;
-
-      // Show committed + live interim text in the box
-      userInput.value = committedText + (interim ? ' ' + interim : '');
-      userInput.style.height = 'auto';
-      userInput.style.height = Math.min(userInput.scrollHeight, 120) + 'px';
-
-      if (interim) {
-        voiceText.textContent = 'Hearing: ' + interim;
-      } else {
-        voiceText.textContent = 'Listening…';
-      }
-    };
-
-    recognition.onerror = (e) => {
-      voiceText.textContent = e.error === 'not-allowed' ? 'Mic access denied' : 'Error: ' + e.error;
-    };
-
-    recognition.onend = () => {
-      isListening = false;
-      micBtn.classList.remove('listening');
-      micBtn.textContent = '🎤';
-      voiceStatus.classList.remove('listening');
-      voiceText.textContent = '';
-      userInput.classList.remove('live');
-      // Trim final value
-      userInput.value = userInput.value.trim();
-    };
-
-    recognition.start();
-  }
+    }
+  });
 </script>
 </body>
 </html>

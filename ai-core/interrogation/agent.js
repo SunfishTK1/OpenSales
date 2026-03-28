@@ -1,13 +1,14 @@
 import 'dotenv/config';
 import readline from 'readline';
 import { createClient } from '@supabase/supabase-js';
+import { createRetellVoiceAgent } from '../retell.js';
 
 // ─── Clients ─────────────────────────────────────────────────────────────────
 
 const BEDROCK_API_KEY = process.env.BEDROCK_API_KEY;
-const BEDROCK_REGION = process.env.AWS_REGION || 'us-east-1';
-const MODEL = 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
-const BEDROCK_URL = `https://bedrock-runtime.${BEDROCK_REGION}.amazonaws.com/model/${MODEL}/invoke`;
+const BEDROCK_REGION = process.env.AWS_REGION || 'us-east-2';
+const MODEL = 'global.anthropic.claude-sonnet-4-5-20250929-v1:0';
+const BEDROCK_URL = `https://bedrock-runtime.${BEDROCK_REGION}.amazonaws.com/model/${encodeURIComponent(MODEL)}/converse`;
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -86,7 +87,7 @@ function ask(prompt) {
 }
 
 async function chat(userMessage) {
-  messages.push({ role: 'user', content: userMessage });
+  messages.push({ role: 'user', content: [{ text: userMessage }] });
 
   const res = await fetch(BEDROCK_URL, {
     method: 'POST',
@@ -95,9 +96,7 @@ async function chat(userMessage) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      anthropic_version: 'bedrock-2023-05-31',
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
+      system: [{ text: SYSTEM_PROMPT }],
       messages,
     }),
   });
@@ -105,8 +104,8 @@ async function chat(userMessage) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || JSON.stringify(data));
 
-  const assistantText = data.content[0].text;
-  messages.push({ role: 'assistant', content: assistantText });
+  const assistantText = data.output.message.content[0].text;
+  messages.push({ role: 'assistant', content: [{ text: assistantText }] });
   return assistantText;
 }
 
@@ -188,11 +187,27 @@ async function main() {
         console.log(`\n✓ Configuration saved! Record ID: ${saved.id}`);
         console.log('  Company:', saved.company_name);
         console.log('  Product:', saved.product_name);
-        console.log('\nOnboarding complete. Your AI sales agent is configured.\n');
       } catch (err) {
         console.error('\n✗ Failed to save config:', err.message);
         console.log('\nExtracted config (copy this manually):\n');
         console.log(JSON.stringify(config, null, 2));
+      }
+
+      // Create the Retell voice agent from collected config
+      console.log('\n--- Creating Retell outbound voice agent... ---\n');
+      try {
+        const retellResult = await createRetellVoiceAgent(config);
+        console.log(`\n✓ Voice agent created on Retell AI!`);
+        console.log('  Agent ID:  ', retellResult.agentId);
+        console.log('  Agent Name:', retellResult.agentName);
+        console.log('  LLM ID:   ', retellResult.llmId);
+        console.log('  Voice:    ', retellResult.voiceId);
+        console.log('  States:   ', retellResult.states.join(' → '));
+        console.log('\nOnboarding complete. Your AI sales agent is live!\n');
+      } catch (err) {
+        console.error('\n✗ Failed to create Retell agent:', err.message);
+        console.log('  (Config was saved to DB — you can create the agent manually later)');
+        console.log('\nOnboarding complete. Config saved but voice agent needs manual setup.\n');
       }
       break;
     }

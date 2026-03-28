@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { Readable } from 'stream';
+import { createRetellVoiceAgent } from './retell.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -18,9 +19,9 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 // ─── Clients ──────────────────────────────────────────────────────────────────
 
 const BEDROCK_API_KEY = process.env.BEDROCK_API_KEY;
-const BEDROCK_REGION = process.env.AWS_REGION || 'us-east-1';
-const MODEL = 'us.anthropic.claude-3-5-haiku-20241022-v1:0';
-const BEDROCK_URL = `https://bedrock-runtime.${BEDROCK_REGION}.amazonaws.com/model/${MODEL}/invoke`;
+const BEDROCK_REGION = process.env.AWS_REGION || 'us-east-2';
+const MODEL = 'global.anthropic.claude-sonnet-4-5-20250929-v1:0';
+const BEDROCK_URL = `https://bedrock-runtime.${BEDROCK_REGION}.amazonaws.com/model/${encodeURIComponent(MODEL)}/converse`;
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -179,19 +180,19 @@ app.post('/api/session/start', async (req, res) => {
 
   try {
     const messages = sessions[sessionId];
-    messages.push({ role: 'user', content: 'Hello, I am ready to configure my company.' });
+    messages.push({ role: 'user', content: [{ text: 'Hello, I am ready to configure my company.' }] });
 
     const bedrockRes = await fetch(BEDROCK_URL, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${BEDROCK_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ anthropic_version: 'bedrock-2023-05-31', max_tokens: 1024, system: SYSTEM_PROMPT, messages }),
+      body: JSON.stringify({ system: [{ text: SYSTEM_PROMPT }], messages }),
     });
 
     const data = await bedrockRes.json();
     if (!bedrockRes.ok) throw new Error(data.message || JSON.stringify(data));
 
-    const assistantText = data.content[0].text;
-    messages.push({ role: 'assistant', content: assistantText });
+    const assistantText = data.output.message.content[0].text;
+    messages.push({ role: 'assistant', content: [{ text: assistantText }] });
 
     res.json({ sessionId, message: assistantText });
   } catch (err) {
@@ -208,34 +209,47 @@ app.post('/api/session/:sessionId/message', async (req, res) => {
   if (!message?.trim()) return res.status(400).json({ error: 'Message required' });
 
   const messages = sessions[sessionId];
-  messages.push({ role: 'user', content: message });
+  messages.push({ role: 'user', content: [{ text: message }] });
 
   try {
     const bedrockRes = await fetch(BEDROCK_URL, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${BEDROCK_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ anthropic_version: 'bedrock-2023-05-31', max_tokens: 1024, system: SYSTEM_PROMPT, messages }),
+      body: JSON.stringify({ system: [{ text: SYSTEM_PROMPT }], messages }),
     });
 
     const data = await bedrockRes.json();
     if (!bedrockRes.ok) throw new Error(data.message || JSON.stringify(data));
 
-    const assistantText = data.content[0].text;
-    messages.push({ role: 'assistant', content: assistantText });
+    const assistantText = data.output.message.content[0].text;
+    messages.push({ role: 'assistant', content: [{ text: assistantText }] });
 
     const config = extractConfig(assistantText);
     let saved = null;
     let saveError = null;
+    let retellResult = null;
+    let retellError = null;
 
     if (config) {
       try { saved = await saveConfig(config); }
       catch (err) { saveError = err.message; }
+
+      // Auto-create the Retell outbound voice agent
+      try { retellResult = await createRetellVoiceAgent(config); }
+      catch (err) { retellError = err.message; }
     }
 
     // Strip the raw <CONFIG_COMPLETE> block from the displayed message
     const displayText = assistantText.replace(/<CONFIG_COMPLETE>[\s\S]*?<\/CONFIG_COMPLETE>/, '').trim();
 
-    res.json({ message: displayText, config: config || undefined, saved: saved || undefined, saveError: saveError || undefined });
+    res.json({
+      message: displayText,
+      config: config || undefined,
+      saved: saved || undefined,
+      saveError: saveError || undefined,
+      retell: retellResult || undefined,
+      retellError: retellError || undefined,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
