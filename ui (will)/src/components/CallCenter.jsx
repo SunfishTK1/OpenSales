@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import Markdown from 'react-markdown'
 
 const STATUS_COLORS = {
   registered: { color: '#92400e', background: '#fef3c7', border: '1.5px solid #92400e' },
@@ -531,6 +532,11 @@ export default function CallCenter() {
                   0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
                   40% { opacity: 1; transform: scale(1); }
                 }
+                .summary-md h1, .summary-md h2, .summary-md h3 { font-size: 13px; font-weight: 700; margin: 10px 0 4px; }
+                .summary-md p { margin: 0 0 8px; }
+                .summary-md ul, .summary-md ol { margin: 0 0 8px; padding-left: 18px; }
+                .summary-md li { margin-bottom: 4px; }
+                .summary-md strong { font-weight: 700; }
               `}</style>
             </>
           )}
@@ -616,9 +622,8 @@ export default function CallCenter() {
                   <div style={{
                     fontSize: 12, color: '#09090b', lineHeight: 1.7, fontWeight: 500,
                     background: '#fff', padding: 14, border: '2px solid #09090b', borderRadius: 4,
-                    whiteSpace: 'pre-wrap',
-                  }}>
-                    {summary}
+                  }} className="summary-md">
+                    <Markdown>{summary}</Markdown>
                   </div>
                 </div>
               )}
