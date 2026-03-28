@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-const ACTION_ICONS = {
-  email_draft: '✉️',
-  research: '🔍',
-  score: '📊',
-  stage_change: '🔄',
-  schedule_call: '📅',
-  intent_score: '🎯',
-  spin_demo: '🚀',
+const ACTION_LABELS = {
+  email_draft:   'Email drafted',
+  research:      'Research completed',
+  score:         'Prospect scored',
+  stage_change:  'Stage updated',
+  schedule_call: 'Call scheduled',
+  intent_score:  'Intent scored',
+  spin_demo:     'Demo generated',
 }
 
 function timeAgo(ts) {
@@ -23,7 +23,6 @@ export default function ActivityFeed() {
   const [runs, setRuns] = useState([])
   const [loading, setLoading] = useState(true)
   const [prospects, setProspects] = useState({})
-  // ref so the realtime callback always sees current prospect map without stale closure
   const prospectsRef = useRef({})
 
   useEffect(() => {
@@ -41,7 +40,7 @@ export default function ActivityFeed() {
     }
     init()
 
-    const channel = supabase.channel('agent-runs-feed')
+    const ch = supabase.channel('agent-runs-feed')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'agent_runs' }, ({ new: row }) => {
         setRuns(prev => [row, ...prev])
         if (row.prospect_id && !prospectsRef.current[row.prospect_id]) {
@@ -55,50 +54,76 @@ export default function ActivityFeed() {
         }
       })
       .subscribe()
-
-    return () => supabase.removeChannel(channel)
+    return () => supabase.removeChannel(ch)
   }, [])
 
-  if (loading) return <div className="text-gray-400 p-8">Loading activity...</div>
+  if (loading) return <div style={{ padding: 40, color: '#a1a1aa', fontSize: 13 }}>Loading...</div>
 
   return (
     <div>
-      <div className="flex items-center gap-2 mb-4">
-        <h2 className="text-xl font-semibold text-gray-700">Agent Activity</h2>
-        <span className="flex h-2 w-2 relative">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-        </span>
-        <span className="text-xs text-green-600 font-medium">Live</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <h1 style={{ fontSize: 18, fontWeight: 700, color: '#09090b', letterSpacing: '-0.3px', margin: 0 }}>Agent Activity</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ position: 'relative', display: 'inline-block', width: 7, height: 7 }}>
+            <span style={{
+              position: 'absolute', inset: 0, borderRadius: '50%', background: '#22c55e', opacity: 0.4,
+              animation: 'ping 1.5s cubic-bezier(0,0,0.2,1) infinite',
+            }} />
+            <span style={{ position: 'relative', display: 'block', width: 7, height: 7, borderRadius: '50%', background: '#22c55e' }} />
+          </span>
+          <span style={{ fontSize: 12, color: '#22c55e', fontWeight: 500 }}>Live</span>
+        </div>
       </div>
 
       {!runs.length ? (
-        <div className="text-center py-16 text-gray-400">
-          <div className="text-4xl mb-2">🤖</div>
-          <div>No agent activity yet. The feed will update live as the AI works.</div>
+        <div style={{
+          background: '#fff', border: '1px solid #e4e4e7', borderRadius: 8,
+          padding: 48, textAlign: 'center', color: '#a1a1aa', fontSize: 13,
+        }}>
+          No agent activity yet. This feed updates in real time.
         </div>
       ) : (
-        <div className="space-y-2">
-          {runs.map(run => {
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {runs.map((run, i) => {
             const p = prospects[run.prospect_id]
             return (
-              <div key={run.id} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                <div className="flex items-start gap-3">
-                  <div className="text-xl mt-0.5">{ACTION_ICONS[run.action] ?? '🤖'}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-gray-800">{run.action?.replace('_', ' ')}</span>
-                      {p && (
-                        <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                          {p.name} · {p.company}
-                        </span>
-                      )}
-                      <span className="text-xs text-gray-400 ml-auto">{timeAgo(run.created_at)}</span>
-                    </div>
-                    {run.reasoning && (
-                      <p className="text-sm text-gray-500 mt-1 line-clamp-2">{run.reasoning}</p>
+              <div
+                key={run.id}
+                style={{
+                  background: '#fff',
+                  border: '1px solid #e4e4e7',
+                  borderRadius: i === 0 ? '8px 8px 4px 4px' : i === runs.length - 1 ? '4px 4px 8px 8px' : 4,
+                  padding: '12px 16px',
+                  display: 'flex', alignItems: 'flex-start', gap: 12,
+                }}
+              >
+                {/* Dot */}
+                <div style={{
+                  width: 7, height: 7, borderRadius: '50%', background: '#2563eb',
+                  marginTop: 5, flexShrink: 0,
+                }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 500, color: '#09090b' }}>
+                      {ACTION_LABELS[run.action] ?? run.action?.replace(/_/g, ' ')}
+                    </span>
+                    {p && (
+                      <span style={{
+                        fontSize: 11.5, color: '#2563eb', background: '#eff6ff',
+                        padding: '1px 7px', borderRadius: 4, fontWeight: 500,
+                      }}>
+                        {p.name} · {p.company}
+                      </span>
                     )}
+                    <span style={{ fontSize: 11.5, color: '#a1a1aa', marginLeft: 'auto' }}>
+                      {timeAgo(run.created_at)}
+                    </span>
                   </div>
+                  {run.reasoning && (
+                    <p style={{ fontSize: 12.5, color: '#71717a', margin: '4px 0 0', lineHeight: 1.5 }}>
+                      {run.reasoning}
+                    </p>
+                  )}
                 </div>
               </div>
             )

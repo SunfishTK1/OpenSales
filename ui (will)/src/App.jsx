@@ -7,10 +7,10 @@ import TaskQueue from './components/TaskQueue'
 import OnboardingWizard from './components/OnboardingWizard'
 
 const NAV = [
-  { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-  { id: 'prospects', label: 'Prospects', icon: '👥' },
-  { id: 'activity', label: 'Activity Feed', icon: '🤖' },
-  { id: 'tasks', label: 'Approvals', icon: '✅' },
+  { id: 'dashboard', label: 'Overview' },
+  { id: 'prospects', label: 'Prospects' },
+  { id: 'activity', label: 'Activity' },
+  { id: 'tasks', label: 'Approvals' },
 ]
 
 export default function App() {
@@ -24,66 +24,98 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 font-sans">
+    <div className="flex h-screen overflow-hidden" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Sidebar */}
-      <aside className="w-56 bg-gray-900 text-white flex flex-col shrink-0">
-        <div className="px-5 py-5 border-b border-gray-700">
-          <div className="font-bold text-lg tracking-tight">OpenSales</div>
-          <div className="text-xs text-gray-400 mt-0.5">AI B2B Sales Platform</div>
+      <aside style={{ width: 220, background: '#0a0a0a', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+        {/* Logo */}
+        <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid #1f1f1f' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{
+              width: 26, height: 26, background: '#2563eb', borderRadius: 5,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 12, fontWeight: 700, color: '#fff', letterSpacing: '-0.5px'
+            }}>OS</div>
+            <span style={{ color: '#fafafa', fontWeight: 600, fontSize: 14, letterSpacing: '-0.2px' }}>OpenSales</span>
+          </div>
         </div>
-        <nav className="flex-1 p-3 space-y-1">
+
+        {/* Nav */}
+        <nav style={{ flex: 1, padding: '8px 8px', display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: '#52525b', letterSpacing: '0.08em', textTransform: 'uppercase', padding: '6px 10px 4px' }}>
+            Pipeline
+          </div>
           {NAV.map(item => (
             <button
               key={item.id}
               onClick={() => setView(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                view === item.id
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-              }`}
+              style={{
+                width: '100%', textAlign: 'left', padding: '7px 10px',
+                borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13.5, fontWeight: 500,
+                background: view === item.id ? '#1f1f1f' : 'transparent',
+                color: view === item.id ? '#fafafa' : '#a1a1aa',
+                transition: 'background 0.1s, color 0.1s',
+              }}
+              onMouseEnter={e => { if (view !== item.id) { e.target.style.background = '#141414'; e.target.style.color = '#e4e4e7' } }}
+              onMouseLeave={e => { if (view !== item.id) { e.target.style.background = 'transparent'; e.target.style.color = '#a1a1aa' } }}
             >
-              <span>{item.icon}</span>
               {item.label}
             </button>
           ))}
         </nav>
-        <div className="px-3 py-4 border-t border-gray-700">
+
+        {/* Bottom */}
+        <div style={{ padding: '12px 10px', borderTop: '1px solid #1f1f1f' }}>
           <button
             onClick={() => setShowOnboarding(true)}
-            className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors"
+            style={{
+              width: '100%', padding: '8px 10px', borderRadius: 6,
+              border: '1px solid #27272a', background: 'transparent',
+              color: '#a1a1aa', fontSize: 12.5, fontWeight: 500, cursor: 'pointer',
+              textAlign: 'left', transition: 'border-color 0.1s, color 0.1s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#3f3f46'; e.currentTarget.style.color = '#e4e4e7' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#27272a'; e.currentTarget.style.color = '#a1a1aa' }}
           >
-            ⚙️ Company Setup
+            Company setup
           </button>
-          <div className="text-xs text-gray-500 mt-2 px-2">Commission-based AI Sales</div>
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-6 py-8">
+      {/* Main */}
+      <main style={{ flex: 1, overflowY: 'auto', background: '#f4f4f5' }}>
+        {/* Top bar */}
+        <div style={{
+          position: 'sticky', top: 0, zIndex: 10,
+          background: '#f4f4f5', borderBottom: '1px solid #e4e4e7',
+          padding: '0 28px', height: 48,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <div style={{ fontSize: 13.5, fontWeight: 600, color: '#09090b' }}>
+            {NAV.find(n => n.id === view)?.label}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{
+              width: 7, height: 7, borderRadius: '50%', background: '#22c55e',
+              boxShadow: '0 0 0 2px #dcfce7'
+            }} />
+            <span style={{ fontSize: 12, color: '#71717a' }}>Live</span>
+          </div>
+        </div>
+
+        <div style={{ padding: '24px 28px', maxWidth: 1080 }}>
           {view === 'dashboard' && <Dashboard />}
-          {view === 'prospects' && (
-            <ProspectTable onSelect={handleSelectProspect} />
-          )}
+          {view === 'prospects' && <ProspectTable onSelect={handleSelectProspect} />}
           {view === 'activity' && <ActivityFeed />}
           {view === 'tasks' && <TaskQueue />}
         </div>
       </main>
 
-      {/* Prospect detail slide-over */}
       {selectedProspect && (
-        <ProspectDetail
-          prospect={selectedProspect}
-          onClose={() => setSelectedProspect(null)}
-        />
+        <ProspectDetail prospect={selectedProspect} onClose={() => setSelectedProspect(null)} />
       )}
 
-      {/* Onboarding wizard modal */}
       {showOnboarding && (
-        <OnboardingWizard
-          onClose={() => setShowOnboarding(false)}
-          onComplete={() => setShowOnboarding(false)}
-        />
+        <OnboardingWizard onClose={() => setShowOnboarding(false)} onComplete={() => setShowOnboarding(false)} />
       )}
     </div>
   )

@@ -21,14 +21,13 @@ export default function TaskQueue() {
     }
     load()
 
-    const channel = supabase.channel('tasks-queue')
+    const ch = supabase.channel('tasks-queue')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
         supabase.from('tasks').select('*').eq('status', 'pending').order('created_at', { ascending: false })
           .then(({ data }) => setTasks(data ?? []))
       })
       .subscribe()
-
-    return () => supabase.removeChannel(channel)
+    return () => supabase.removeChannel(ch)
   }, [])
 
   async function handleTask(taskId, status) {
@@ -38,62 +37,92 @@ export default function TaskQueue() {
     setActioning(null)
   }
 
-  if (loading) return <div className="text-gray-400 p-8">Loading tasks...</div>
+  if (loading) return <div style={{ padding: 40, color: '#a1a1aa', fontSize: 13 }}>Loading...</div>
 
   return (
     <div>
-      <h2 className="text-xl font-semibold text-gray-700 mb-4">
-        Pending Approvals <span className="text-sm font-normal text-gray-400">({tasks.length})</span>
-      </h2>
+      <div style={{ marginBottom: 16 }}>
+        <h1 style={{ fontSize: 18, fontWeight: 700, color: '#09090b', letterSpacing: '-0.3px', margin: 0 }}>
+          Approvals
+          {tasks.length > 0 && (
+            <span style={{
+              marginLeft: 8, fontSize: 12, fontWeight: 600,
+              background: '#fef3c7', color: '#92400e',
+              padding: '2px 8px', borderRadius: 10, verticalAlign: 'middle',
+            }}>{tasks.length} pending</span>
+          )}
+        </h1>
+        <p style={{ fontSize: 13, color: '#71717a', margin: '3px 0 0' }}>Review and approve actions before the AI executes them.</p>
+      </div>
 
       {!tasks.length ? (
-        <div className="text-center py-16 text-gray-400">
-          <div className="text-4xl mb-2">✅</div>
-          <div>No pending tasks. All caught up!</div>
+        <div style={{
+          background: '#fff', border: '1px solid #e4e4e7', borderRadius: 8,
+          padding: 48, textAlign: 'center', color: '#a1a1aa', fontSize: 13,
+        }}>
+          No pending approvals. All clear.
         </div>
       ) : (
-        <div className="space-y-3">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {tasks.map(task => {
             const p = prospects[task.prospect_id]
             return (
-              <div key={task.id} className="bg-white rounded-xl border border-amber-200 p-4 shadow-sm">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-gray-800 capitalize">{task.type?.replace('_', ' ')}</span>
-                      {p && (
-                        <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                          {p.name} · {p.company}
-                        </span>
-                      )}
+              <div key={task.id} style={{
+                background: '#fff', border: '1px solid #e4e4e7', borderRadius: 8,
+                padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: 16,
+                borderLeft: '3px solid #f59e0b',
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13.5, fontWeight: 600, color: '#09090b', textTransform: 'capitalize' }}>
+                      {task.type?.replace(/_/g, ' ')}
+                    </span>
+                    {p && (
+                      <span style={{
+                        fontSize: 11.5, background: '#eff6ff', color: '#1d4ed8',
+                        padding: '1px 7px', borderRadius: 4, fontWeight: 500,
+                      }}>{p.name} · {p.company}</span>
+                    )}
+                    <span style={{ fontSize: 11.5, color: '#a1a1aa', marginLeft: 'auto' }}>
+                      {new Date(task.created_at).toLocaleString()}
+                    </span>
+                  </div>
+                  {task.payload?.subject && (
+                    <div style={{ fontSize: 13, color: '#3f3f46', fontWeight: 500, marginBottom: 2 }}>
+                      {task.payload.subject}
                     </div>
-                    {task.payload?.subject && (
-                      <div className="text-sm text-gray-600 mt-1 font-medium">{task.payload.subject}</div>
-                    )}
-                    {task.payload?.body && (
-                      <div className="text-xs text-gray-400 mt-1 line-clamp-2">{task.payload.body}</div>
-                    )}
-                    {task.scheduled_for && (
-                      <div className="text-xs text-gray-400 mt-1">📅 {new Date(task.scheduled_for).toLocaleString()}</div>
-                    )}
-                    <div className="text-xs text-gray-400 mt-1">{new Date(task.created_at).toLocaleString()}</div>
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button
-                      disabled={actioning === task.id}
-                      onClick={() => handleTask(task.id, 'approved')}
-                      className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      disabled={actioning === task.id}
-                      onClick={() => handleTask(task.id, 'rejected')}
-                      className="px-3 py-1.5 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 disabled:opacity-50 transition-colors"
-                    >
-                      Reject
-                    </button>
-                  </div>
+                  )}
+                  {task.payload?.body && (
+                    <div style={{ fontSize: 12, color: '#71717a', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                      {task.payload.body}
+                    </div>
+                  )}
+                  {task.scheduled_for && (
+                    <div style={{ fontSize: 12, color: '#71717a', marginTop: 4 }}>
+                      Scheduled: {new Date(task.scheduled_for).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'flex-start' }}>
+                  <button
+                    disabled={actioning === task.id}
+                    onClick={() => handleTask(task.id, 'approved')}
+                    style={{
+                      padding: '6px 14px', fontSize: 12.5, fontWeight: 500,
+                      background: '#09090b', color: '#fff', border: 'none',
+                      borderRadius: 6, cursor: 'pointer', opacity: actioning === task.id ? 0.5 : 1,
+                    }}
+                  >Approve</button>
+                  <button
+                    disabled={actioning === task.id}
+                    onClick={() => handleTask(task.id, 'rejected')}
+                    style={{
+                      padding: '6px 14px', fontSize: 12.5, fontWeight: 500,
+                      background: '#fff', color: '#71717a',
+                      border: '1px solid #e4e4e7', borderRadius: 6, cursor: 'pointer',
+                      opacity: actioning === task.id ? 0.5 : 1,
+                    }}
+                  >Reject</button>
                 </div>
               </div>
             )
