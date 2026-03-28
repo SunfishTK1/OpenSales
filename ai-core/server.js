@@ -500,6 +500,46 @@ app.get('/api/calls/:callId/live', async (req, res) => {
   }
 });
 
+// ─── Summarize a call transcript via Bedrock Claude ─────────────────────────
+
+app.post('/api/calls/:callId/summarize', async (req, res) => {
+  if (!BEDROCK_API_KEY) return res.status(500).json({ error: 'BEDROCK_API_KEY not set' });
+
+  const { transcript } = req.body;
+  if (!transcript) return res.status(400).json({ error: 'transcript is required' });
+
+  const prompt = `You are a sales call analyst. Summarize this sales call transcript concisely.
+
+Include:
+1. **Outcome** — what happened (qualified, transferred, not interested, etc.)
+2. **Key points** — what the prospect said about their needs, objections, and interest level
+3. **Action items** — any follow-ups, emails to send, or next steps
+4. **Prospect sentiment** — overall tone (positive, neutral, negative)
+
+Keep it to 4-6 short bullet points. Be direct and actionable.
+
+Transcript:
+${transcript}`;
+
+  try {
+    const bedrockRes = await fetch(BEDROCK_URL, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${BEDROCK_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: [{ text: prompt }] }],
+      }),
+    });
+
+    const data = await bedrockRes.json();
+    if (!bedrockRes.ok) throw new Error(data.message || JSON.stringify(data));
+
+    const summary = data.output.message.content[0].text;
+    res.json({ summary });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Auto-sync calls from Retell every 60s ──────────────────────────────────
 
 const SYNC_INTERVAL_MS = 60_000;

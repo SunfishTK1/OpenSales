@@ -138,6 +138,8 @@ export default function CallCenter() {
   const [liveData, setLiveData] = useState(null)
   const [recentCalls, setRecentCalls] = useState([])
   const [viewingCall, setViewingCall] = useState(null)
+  const [summarizing, setSummarizing] = useState(false)
+  const [summary, setSummary] = useState(null)
   const [backendOnline, setBackendOnline] = useState(null) // null=checking, true, false
   const pollRef = useRef(null)
   const transcriptEndRef = useRef(null)
@@ -221,6 +223,7 @@ export default function CallCenter() {
     setActiveCall(null)
     setLiveData(null)
     setViewingCall(null)
+    setSummary(null)
     setToNumber('')
     setCustomerName('')
     if (backendOnline) {
@@ -235,10 +238,32 @@ export default function CallCenter() {
     setViewingCall(call)
     setActiveCall(null)
     setLiveData(null)
+    setSummary(null)
     if (pollRef.current) {
       clearInterval(pollRef.current)
       pollRef.current = null
     }
+  }
+
+  async function handleSummarize(callData) {
+    const transcript = callData?.transcript
+      || callData?.transcript_object?.map(e => `${e.role}: ${e.content}`).join('\n')
+    if (!transcript) return
+    setSummarizing(true)
+    setSummary(null)
+    try {
+      const res = await fetch(`/api/calls/${callData.call_id}/summarize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript }),
+      })
+      const data = await res.json()
+      if (data.summary) setSummary(data.summary)
+      else setSummary('Failed to generate summary.')
+    } catch {
+      setSummary('Failed to generate summary.')
+    }
+    setSummarizing(false)
   }
 
   const callDisabled = !selectedAgent || !selectedFromNumber || !toNumber || launching
@@ -452,20 +477,52 @@ export default function CallCenter() {
                     </div>
                   )}
 
-                  <button
-                    onClick={handleNewCall}
-                    className="nb-btn"
-                    style={{
-                      padding: '8px 20px', fontSize: 11, fontWeight: 700,
-                      border: '2px solid #09090b', borderRadius: 4,
-                      background: '#09090b', color: '#fff', cursor: 'pointer',
-                      textTransform: 'uppercase', letterSpacing: '0.06em',
-                      boxShadow: '3px 3px 0 0 rgba(0,0,0,1)',
-                      transition: 'transform 0.05s, box-shadow 0.05s',
-                    }}
-                  >
-                    New Call
-                  </button>
+                  {summary && (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 9, color: '#71717a', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>AI Summary</div>
+                      <div style={{
+                        fontSize: 12, color: '#09090b', lineHeight: 1.7, fontWeight: 500,
+                        background: '#fff', padding: 14, border: '2px solid #09090b', borderRadius: 4,
+                        whiteSpace: 'pre-wrap',
+                      }}>
+                        {summary}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      onClick={() => handleSummarize(currentCallData)}
+                      disabled={summarizing}
+                      className="nb-btn"
+                      style={{
+                        padding: '8px 20px', fontSize: 11, fontWeight: 700,
+                        border: '2px solid #09090b', borderRadius: 4,
+                        background: summarizing ? '#e5e5e0' : '#fff',
+                        color: summarizing ? '#71717a' : '#09090b',
+                        cursor: summarizing ? 'not-allowed' : 'pointer',
+                        textTransform: 'uppercase', letterSpacing: '0.06em',
+                        boxShadow: summarizing ? 'none' : '3px 3px 0 0 rgba(0,0,0,1)',
+                        transition: 'transform 0.05s, box-shadow 0.05s',
+                      }}
+                    >
+                      {summarizing ? 'Summarizing...' : summary ? 'Re-summarize' : 'Summarize Call'}
+                    </button>
+                    <button
+                      onClick={handleNewCall}
+                      className="nb-btn"
+                      style={{
+                        padding: '8px 20px', fontSize: 11, fontWeight: 700,
+                        border: '2px solid #09090b', borderRadius: 4,
+                        background: '#09090b', color: '#fff', cursor: 'pointer',
+                        textTransform: 'uppercase', letterSpacing: '0.06em',
+                        boxShadow: '3px 3px 0 0 rgba(0,0,0,1)',
+                        transition: 'transform 0.05s, box-shadow 0.05s',
+                      }}
+                    >
+                      New Call
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -544,7 +601,7 @@ export default function CallCenter() {
               <div style={{ fontSize: 9, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8, marginTop: 8 }}>
                 Transcript
               </div>
-              <div style={{ border: '2px solid #09090b', borderRadius: 4, background: '#f5f5f0' }}>
+              <div style={{ border: '2px solid #09090b', borderRadius: 4, background: '#f5f5f0', marginBottom: 14 }}>
                 <TranscriptView
                   transcript={viewingCall.transcript_object}
                   plainTranscript={viewingCall.transcript}
@@ -552,6 +609,37 @@ export default function CallCenter() {
                   transcriptEndRef={transcriptEndRef}
                 />
               </div>
+
+              {summary && (
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 9, color: '#71717a', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>AI Summary</div>
+                  <div style={{
+                    fontSize: 12, color: '#09090b', lineHeight: 1.7, fontWeight: 500,
+                    background: '#fff', padding: 14, border: '2px solid #09090b', borderRadius: 4,
+                    whiteSpace: 'pre-wrap',
+                  }}>
+                    {summary}
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={() => handleSummarize(viewingCall)}
+                disabled={summarizing}
+                className="nb-btn"
+                style={{
+                  padding: '8px 20px', fontSize: 11, fontWeight: 700,
+                  border: '2px solid #09090b', borderRadius: 4,
+                  background: summarizing ? '#e5e5e0' : '#fff',
+                  color: summarizing ? '#71717a' : '#09090b',
+                  cursor: summarizing ? 'not-allowed' : 'pointer',
+                  textTransform: 'uppercase', letterSpacing: '0.06em',
+                  boxShadow: summarizing ? 'none' : '3px 3px 0 0 rgba(0,0,0,1)',
+                  transition: 'transform 0.05s, box-shadow 0.05s',
+                }}
+              >
+                {summarizing ? 'Summarizing...' : summary ? 'Re-summarize' : 'Summarize Call'}
+              </button>
             </>
           )}
         </div>
