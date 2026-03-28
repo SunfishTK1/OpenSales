@@ -60,32 +60,24 @@ const inputStyle = {
 function TranscriptView({ transcript, plainTranscript, isLive, transcriptEndRef }) {
   if ((!transcript || transcript.length === 0) && !plainTranscript) {
     return (
-      <div style={{ padding: 32, textAlign: 'center', color: '#71717a', fontSize: 12, fontWeight: 500 }}>
+      <div style={{ padding: '28px 20px', textAlign: 'center', color: '#71717a', fontSize: 12 }}>
         {isLive ? (
-          <div style={{ padding: '8px 0' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <span style={{
-                width: 10, height: 10, borderRadius: '50%', background: '#16a34a',
-                display: 'inline-block', animation: 'liveDot 1.2s infinite',
-              }} />
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#09090b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Call in progress
-              </span>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#16a34a', display: 'inline-block', animation: 'liveDot 1.2s infinite' }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Call in progress</span>
             </div>
-            <div style={{ fontSize: 11, color: '#71717a', fontWeight: 500, lineHeight: 1.5 }}>
-              Transcript will appear once the call ends.
-            </div>
+            <div style={{ fontSize: 11, color: '#a1a1aa', fontWeight: 500 }}>Transcript will appear once the call ends.</div>
           </div>
-        ) : 'No transcript available.'}
+        ) : <span style={{ fontSize: 11, fontWeight: 500 }}>No transcript available.</span>}
       </div>
     )
   }
 
-  // Fall back to plain transcript string if no structured transcript_object
   if ((!transcript || transcript.length === 0) && plainTranscript) {
     return (
-      <div style={{ maxHeight: 360, overflowY: 'auto', padding: '12px 16px' }}>
-        <div style={{ fontSize: 12, lineHeight: 1.6, color: '#09090b', whiteSpace: 'pre-wrap', fontWeight: 500 }}>
+      <div style={{ maxHeight: 380, overflowY: 'auto', padding: '16px 20px' }}>
+        <div style={{ fontSize: 12, lineHeight: 1.7, color: '#09090b', whiteSpace: 'pre-wrap', fontWeight: 500 }}>
           {plainTranscript}
         </div>
         <div ref={transcriptEndRef} />
@@ -94,31 +86,35 @@ function TranscriptView({ transcript, plainTranscript, isLive, transcriptEndRef 
   }
 
   return (
-    <div style={{
-      maxHeight: 360, overflowY: 'auto', padding: '12px 16px',
-      display: 'flex', flexDirection: 'column', gap: 8,
-    }}>
+    <div style={{ maxHeight: 380, overflowY: 'auto', padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
       {transcript.map((entry, i) => {
         const isAgent = entry.role === 'agent'
         return (
-          <div key={i} style={{ display: 'flex', justifyContent: isAgent ? 'flex-start' : 'flex-end' }}>
-            <div style={{
-              maxWidth: '75%',
-              padding: '8px 12px',
-              borderRadius: 4,
-              border: '2px solid #09090b',
-              fontSize: 12, lineHeight: 1.5, color: '#09090b',
-              background: isAgent ? '#f0f7ff' : '#f5f5f0',
-              boxShadow: '2px 2px 0 0 rgba(0,0,0,1)',
-            }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-end', gap: 8, justifyContent: isAgent ? 'flex-start' : 'flex-end' }}>
+            {isAgent && (
               <div style={{
-                fontSize: 9, fontWeight: 700, color: '#71717a',
-                textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4,
-              }}>
-                {isAgent ? 'Agent' : 'User'}
-              </div>
+                width: 26, height: 26, borderRadius: 4, flexShrink: 0,
+                background: '#09090b', color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 8, fontWeight: 700, letterSpacing: '0.04em',
+              }}>AI</div>
+            )}
+            <div style={{
+              maxWidth: '72%', padding: '9px 13px', borderRadius: 6,
+              fontSize: 12, lineHeight: 1.6, color: '#09090b',
+              background: isAgent ? '#eff6ff' : '#f5f5f0',
+              border: `1.5px solid ${isAgent ? '#bfdbfe' : '#e4e4e7'}`,
+            }}>
               {entry.content}
             </div>
+            {!isAgent && (
+              <div style={{
+                width: 26, height: 26, borderRadius: 4, flexShrink: 0,
+                background: '#f4f4f5', border: '1.5px solid #e4e4e7',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 8, fontWeight: 700, color: '#71717a', letterSpacing: '0.04em',
+              }}>YOU</div>
+            )}
           </div>
         )
       })}
