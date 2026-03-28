@@ -30,11 +30,9 @@ export default function App() {
         {/* Logo */}
         <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid #1f1f1f' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{
-              width: 26, height: 26, background: '#2563eb', borderRadius: 5,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 12, fontWeight: 700, color: '#fff', letterSpacing: '-0.5px'
-            }}>OS</div>
+            <div style={{ width: 26, height: 26, borderRadius: 6, overflow: 'hidden', flexShrink: 0 }}>
+              <img src="/logo.png" alt="OpenSales" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            </div>
             <span style={{ color: '#fafafa', fontWeight: 600, fontSize: 14, letterSpacing: '-0.2px' }}>OpenSales</span>
           </div>
         </div>
