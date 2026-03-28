@@ -247,6 +247,87 @@ export default function CRM() {
                 </div>
               </div>
 
+              {/* CRM Intel (from call analysis) */}
+              {(selected.crm_tags?.length > 0 || selected.product_interest || selected.qualification_score > 0 || selected.primary_use_case) && (
+                <div style={{
+                  background: '#fff', border: '2px solid #09090b',
+                  boxShadow: '4px 4px 0 0 rgba(0,0,0,1)', borderRadius: 6,
+                  overflow: 'hidden',
+                }}>
+                  <div style={{ padding: '12px 20px', borderBottom: '2px solid #09090b', background: '#f5f5f0', fontSize: 9, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    Call Intelligence
+                  </div>
+                  <div style={{ padding: '14px 20px' }}>
+                    {/* Tags */}
+                    {selected.crm_tags?.length > 0 && (
+                      <div style={{ marginBottom: 14 }}>
+                        <div style={{ fontSize: 9, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, marginBottom: 8 }}>CRM Tags</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                          {selected.crm_tags.map(tag => (
+                            <span key={tag} style={{
+                              fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 3,
+                              border: '1.5px solid #6d28d9', background: '#f5f3ff', color: '#6d28d9',
+                            }}>{tag}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+                      {selected.product_interest && (
+                        <div>
+                          <div style={{ fontSize: 9, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, marginBottom: 4 }}>Product Interest</div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#09090b' }}>{selected.product_interest}</div>
+                        </div>
+                      )}
+                      {selected.qualification_score > 0 && (
+                        <div>
+                          <div style={{ fontSize: 9, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, marginBottom: 4 }}>Qual Score</div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#09090b' }}>{selected.qualification_score} / 5</div>
+                        </div>
+                      )}
+                      {selected.expected_maus && (
+                        <div>
+                          <div style={{ fontSize: 9, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, marginBottom: 4 }}>Expected MAUs</div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#09090b' }}>{selected.expected_maus}</div>
+                        </div>
+                      )}
+                      {selected.primary_use_case && (
+                        <div>
+                          <div style={{ fontSize: 9, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, marginBottom: 4 }}>Use Case</div>
+                          <div style={{ fontSize: 12, fontWeight: 500, color: '#09090b' }}>{selected.primary_use_case}</div>
+                        </div>
+                      )}
+                      {selected.competitor && (
+                        <div>
+                          <div style={{ fontSize: 9, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, marginBottom: 4 }}>Competitor</div>
+                          <div style={{ fontSize: 12, fontWeight: 500, color: '#09090b' }}>{selected.competitor}</div>
+                        </div>
+                      )}
+                      {selected.follow_up_sequence && (
+                        <div>
+                          <div style={{ fontSize: 9, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, marginBottom: 4 }}>Follow-Up</div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: '#09090b' }}>Sequence {selected.follow_up_sequence}</div>
+                        </div>
+                      )}
+                    </div>
+
+                    {selected.objections && (
+                      <div style={{ marginTop: 14 }}>
+                        <div style={{ fontSize: 9, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, marginBottom: 4 }}>Objections</div>
+                        <div style={{ fontSize: 12, fontWeight: 500, color: '#09090b' }}>{selected.objections}</div>
+                      </div>
+                    )}
+                    {selected.next_step && (
+                      <div style={{ marginTop: 14 }}>
+                        <div style={{ fontSize: 9, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, marginBottom: 4 }}>Next Step</div>
+                        <div style={{ fontSize: 12, fontWeight: 500, color: '#09090b' }}>{selected.next_step}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Call summaries */}
               {(() => {
                 const summaries = getCallSummaries(selected.notes)

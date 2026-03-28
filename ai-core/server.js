@@ -315,15 +315,55 @@ async function autoSummarizeCall(call) {
   const dynVars = call.retell_llm_dynamic_variables || call.collected_dynamic_variables || {};
   const customerName = dynVars.customer_name || call.customer_name || call.metadata?.customer_name || '';
 
-  const prompt = `You are a sales call analyst. Summarize this sales call transcript concisely.
+  const prompt = `You are a sales call analyst for a B2B SaaS company. Analyze this sales call transcript and return a JSON object followed by a markdown summary.
 
-Include:
-1. **Outcome** — what happened (qualified, transferred, not interested, etc.)
-2. **Key points** — what the prospect said about their needs, objections, and interest level
-3. **Action items** — any follow-ups, emails to send, or next steps
-4. **Prospect sentiment** — overall tone (positive, neutral, negative)
+FIRST, output a JSON block wrapped in <CRM_DATA> tags with these exact fields:
+<CRM_DATA>
+{
+  "product_interest": "Free|Pro|Team|Enterprise",
+  "qualification_score": 0-5,
+  "primary_use_case": "what they are building",
+  "expected_maus": "estimated monthly active users",
+  "competitor": "competitor being evaluated or null",
+  "objections": "main objections raised or null",
+  "next_step": "agreed next step",
+  "follow_up_sequence": "A|B|C",
+  "crm_tags": ["tag1", "tag2"],
+  "stage": "research|outreach|responded|discovery_call|high_intent|demo|negotiation|pilot|closed"
+}
+</CRM_DATA>
 
-Keep it to 4-6 short bullet points. Be direct and actionable.
+Qualification signals (count how many are met, max 5):
+1. Production app with real users
+2. 100K+ MAUs or enterprise scale
+3. Active evaluation with timeline
+4. Compliance/regulatory requirements (HIPAA, SOC2)
+5. Multi-stakeholder or budget holder involved
+
+CRM tag rules — apply ALL that match:
+- "qualified-enterprise": HIPAA, dedicated infra, or 1M+ MAUs mentioned
+- "qualified-team": SOC2, SSO, or multi-stakeholder
+- "qualified-growth": 100K+ MAUs, active evaluation
+- "self-serve-pro": Production app, under 100K MAUs
+- "nurture-early": Exploring, no timeline
+- "competitor-eval": Actively comparing platforms
+- "migration-firebase": Moving off Firebase specifically
+- "compliance-required": Any regulatory mention
+- "transferred-to-sales": Handed off to human rep
+- "transferred-to-se": Handed off to Solutions Engineering
+
+Follow-up sequence:
+- A: Self-serve pro (ready to use, under 100K MAUs)
+- B: Nurture/early stage (exploring, no timeline)
+- C: Qualified but needs time (has requirements, evaluating)
+
+THEN, after the CRM_DATA block, write a concise markdown summary with:
+1. **Outcome** — what happened
+2. **Key points** — prospect needs, objections, interest level
+3. **Action items** — follow-ups and next steps
+4. **Prospect sentiment** — positive, neutral, or negative
+
+Keep the summary to 4-6 bullet points.
 
 Transcript:
 ${transcript}`;
@@ -337,7 +377,17 @@ ${transcript}`;
     const data = await bedrockRes.json();
     if (!bedrockRes.ok) return;
 
-    const summary = data.output.message.content[0].text;
+    const fullResponse = data.output.message.content[0].text;
+
+    // Extract CRM data
+    let crmData = null;
+    const crmMatch = fullResponse.match(/<CRM_DATA>([\s\S]*?)<\/CRM_DATA>/);
+    if (crmMatch) {
+      try { crmData = JSON.parse(crmMatch[1].trim()); } catch {}
+    }
+
+    // Extract summary (everything after CRM_DATA block)
+    const summary = fullResponse.replace(/<CRM_DATA>[\s\S]*?<\/CRM_DATA>/, '').trim();
     const callDate = new Date().toISOString().slice(0, 10);
     const callId = call.call_id;
 
@@ -362,7 +412,20 @@ ${transcript}`;
         if (existing && existing.length > 0) return;
 
         const updatedNotes = `[Call Summary — ${callDate}]\n${summary}\n\n${prospect.notes || ''}`;
-        await supabase.from('prospects').update({ notes: updatedNotes }).eq('id', prospect.id);
+        const update = { notes: updatedNotes };
+        if (crmData) {
+          if (crmData.product_interest) update.product_interest = crmData.product_interest;
+          if (crmData.qualification_score != null) update.qualification_score = crmData.qualification_score;
+          if (crmData.primary_use_case) update.primary_use_case = crmData.primary_use_case;
+          if (crmData.expected_maus) update.expected_maus = crmData.expected_maus;
+          if (crmData.competitor) update.competitor = crmData.competitor;
+          if (crmData.objections) update.objections = crmData.objections;
+          if (crmData.next_step) update.next_step = crmData.next_step;
+          if (crmData.follow_up_sequence) update.follow_up_sequence = crmData.follow_up_sequence;
+          if (crmData.crm_tags?.length) update.crm_tags = crmData.crm_tags;
+          if (crmData.stage) update.stage = crmData.stage;
+        }
+        await supabase.from('prospects').update(update).eq('id', prospect.id);
         await supabase.from('communications').insert({
           prospect_id: prospect.id,
           channel: 'call',
@@ -598,67 +661,43 @@ app.post('/api/calls/:callId/summarize', async (req, res) => {
   const { transcript, customer_name } = req.body;
   if (!transcript) return res.status(400).json({ error: 'transcript is required' });
 
-  const prompt = `You are a sales call analyst. Summarize this sales call transcript concisely.
+  // Use the same call object format that autoSummarizeCall expects
+  const fakeCall = {
+    call_id: req.params.callId,
+    transcript,
+    customer_name: customer_name || '',
+    retell_llm_dynamic_variables: { customer_name: customer_name || '' },
+  };
 
-Include:
-1. **Outcome** — what happened (qualified, transferred, not interested, etc.)
-2. **Key points** — what the prospect said about their needs, objections, and interest level
-3. **Action items** — any follow-ups, emails to send, or next steps
-4. **Prospect sentiment** — overall tone (positive, neutral, negative)
-
-Keep it to 4-6 short bullet points. Be direct and actionable.
-
-Transcript:
-${transcript}`;
-
+  // Run the full CRM-enriched summarize
   try {
-    const bedrockRes = await fetch(BEDROCK_URL, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${BEDROCK_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: [{ role: 'user', content: [{ text: prompt }] }],
-      }),
-    });
+    await autoSummarizeCall(fakeCall);
 
-    const data = await bedrockRes.json();
-    if (!bedrockRes.ok) throw new Error(data.message || JSON.stringify(data));
-
-    const summary = data.output.message.content[0].text;
-
-    // Save summary to prospect CRM — match by customer_name
+    // Fetch what was saved to return to the UI
     let prospect = null;
-    const name = customer_name || '';
-    if (name) {
+    if (customer_name) {
       const { data: matches } = await supabase
         .from('prospects')
-        .select('id, name, notes')
-        .ilike('name', `%${name}%`)
+        .select('id, name, crm_tags, product_interest, qualification_score, follow_up_sequence, stage')
+        .ilike('name', `%${customer_name}%`)
         .limit(1);
-
-      if (matches && matches.length > 0) {
-        prospect = matches[0];
-        const callDate = new Date().toISOString().slice(0, 10);
-        const updatedNotes = `[Call Summary — ${callDate}]\n${summary}\n\n${prospect.notes || ''}`;
-
-        await supabase
-          .from('prospects')
-          .update({ notes: updatedNotes })
-          .eq('id', prospect.id);
-
-        await supabase
-          .from('communications')
-          .insert({
-            prospect_id: prospect.id,
-            channel: 'call',
-            direction: 'outbound',
-            subject: `Call Summary — ${callDate}`,
-            content: summary,
-            status: 'completed',
-          });
-      }
+      if (matches?.length) prospect = matches[0];
     }
 
-    res.json({ summary, prospect: prospect ? { id: prospect.id, name: prospect.name } : null });
+    // Get the latest communication (the summary we just saved)
+    let summary = 'Summary generated and saved to CRM.';
+    if (prospect) {
+      const { data: latestComm } = await supabase
+        .from('communications')
+        .select('content')
+        .eq('prospect_id', prospect.id)
+        .eq('channel', 'call')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (latestComm?.length) summary = latestComm[0].content;
+    }
+
+    res.json({ summary, prospect: prospect || null });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
