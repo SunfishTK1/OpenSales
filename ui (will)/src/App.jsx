@@ -156,7 +156,7 @@ export default function App() {
         </div>
 
         <div style={{ padding: '24px 28px', maxWidth: 1080 }}>
-          {view === 'dashboard' && <Dashboard onNavigate={setView} />
+          {view === 'dashboard' && <Dashboard onNavigate={setView} />}
           {view === 'prospects' && <ProspectTable onSelect={handleSelectProspect} />}
           {view === 'calls' && <CallCenter />}
           {view === 'activity' && <ActivityFeed />}
