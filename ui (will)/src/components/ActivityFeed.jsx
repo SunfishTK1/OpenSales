@@ -57,70 +57,78 @@ export default function ActivityFeed() {
     return () => supabase.removeChannel(ch)
   }, [])
 
-  if (loading) return <div style={{ padding: 40, color: '#a1a1aa', fontSize: 13 }}>Loading...</div>
+  if (loading) return (
+    <div style={{ padding: 40, color: '#71717a', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+      Loading...
+    </div>
+  )
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-        <h1 style={{ fontSize: 18, fontWeight: 700, color: '#09090b', letterSpacing: '-0.3px', margin: 0 }}>Agent Activity</h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <span style={{ position: 'relative', display: 'inline-block', width: 7, height: 7 }}>
-            <span style={{
-              position: 'absolute', inset: 0, borderRadius: '50%', background: '#22c55e', opacity: 0.4,
-              animation: 'ping 1.5s cubic-bezier(0,0,0.2,1) infinite',
-            }} />
-            <span style={{ position: 'relative', display: 'block', width: 7, height: 7, borderRadius: '50%', background: '#22c55e' }} />
-          </span>
-          <span style={{ fontSize: 12, color: '#22c55e', fontWeight: 500 }}>Live</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#09090b', letterSpacing: '-0.3px', margin: 0, textTransform: 'uppercase' }}>Agent Activity</h1>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '3px 10px', borderRadius: 3,
+          border: '2px solid #16a34a', background: '#f0fdf4',
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#16a34a', display: 'inline-block' }} />
+          <span style={{ fontSize: 10, color: '#16a34a', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Live</span>
         </div>
       </div>
 
       {!runs.length ? (
         <div style={{
-          background: '#fff', border: '1px solid #e4e4e7', borderRadius: 8,
-          padding: 48, textAlign: 'center', color: '#a1a1aa', fontSize: 13,
+          background: '#fff',
+          border: '2px solid #09090b',
+          boxShadow: '4px 4px 0 0 rgba(0,0,0,1)',
+          borderRadius: 6,
+          padding: 48, textAlign: 'center', color: '#71717a', fontSize: 12, fontWeight: 500,
         }}>
           No agent activity yet. This feed updates in real time.
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          {runs.map((run, i) => {
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {runs.map((run) => {
             const p = prospects[run.prospect_id]
             return (
               <div
                 key={run.id}
                 style={{
                   background: '#fff',
-                  border: '1px solid #e4e4e7',
-                  borderRadius: i === 0 ? '8px 8px 4px 4px' : i === runs.length - 1 ? '4px 4px 8px 8px' : 4,
+                  border: '2px solid #09090b',
+                  boxShadow: '3px 3px 0 0 rgba(0,0,0,1)',
+                  borderRadius: 6,
                   padding: '12px 16px',
                   display: 'flex', alignItems: 'flex-start', gap: 12,
                 }}
               >
-                {/* Dot */}
                 <div style={{
-                  width: 7, height: 7, borderRadius: '50%', background: '#2563eb',
-                  marginTop: 5, flexShrink: 0,
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: '#09090b', border: '2px solid #09090b',
+                  marginTop: 4, flexShrink: 0,
                 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 13, fontWeight: 500, color: '#09090b' }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#09090b', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
                       {ACTION_LABELS[run.action] ?? run.action?.replace(/_/g, ' ')}
                     </span>
                     {p && (
                       <span style={{
-                        fontSize: 11.5, color: '#2563eb', background: '#eff6ff',
-                        padding: '1px 7px', borderRadius: 4, fontWeight: 500,
+                        fontSize: 10, color: '#1d4ed8', background: '#eff6ff',
+                        padding: '2px 8px', borderRadius: 3,
+                        fontWeight: 700, border: '1.5px solid #1d4ed8',
+                        textTransform: 'uppercase', letterSpacing: '0.03em',
                       }}>
                         {p.name} · {p.company}
                       </span>
                     )}
-                    <span style={{ fontSize: 11.5, color: '#a1a1aa', marginLeft: 'auto' }}>
+                    <span style={{ fontSize: 10, color: '#71717a', marginLeft: 'auto', fontWeight: 500 }}>
                       {timeAgo(run.created_at)}
                     </span>
                   </div>
                   {run.reasoning && (
-                    <p style={{ fontSize: 12.5, color: '#71717a', margin: '4px 0 0', lineHeight: 1.5 }}>
+                    <p style={{ fontSize: 11, color: '#52525b', margin: '6px 0 0', lineHeight: 1.6, fontWeight: 500 }}>
                       {run.reasoning}
                     </p>
                   )}

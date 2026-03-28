@@ -1,18 +1,19 @@
 import { useState, useEffect, useRef } from 'react'
 
 const STATUS_COLORS = {
-  registered: { color: '#92400e', background: '#fef3c7' },
-  ongoing:    { color: '#166534', background: '#f0fdf4' },
-  ended:      { color: '#52525b', background: '#f4f4f5' },
-  error:      { color: '#b91c1c', background: '#fef2f2' },
+  registered: { color: '#92400e', background: '#fef3c7', border: '1.5px solid #92400e' },
+  ongoing:    { color: '#166534', background: '#f0fdf4', border: '1.5px solid #166534' },
+  ended:      { color: '#52525b', background: '#f4f4f5', border: '1.5px solid #52525b' },
+  error:      { color: '#b91c1c', background: '#fef2f2', border: '1.5px solid #b91c1c' },
 }
 
 function StatusBadge({ status }) {
   const style = STATUS_COLORS[status] ?? STATUS_COLORS.ended
   return (
     <span style={{
-      display: 'inline-block', padding: '2px 8px', borderRadius: 4,
-      fontSize: 11.5, fontWeight: 500, ...style,
+      display: 'inline-block', padding: '2px 8px', borderRadius: 3,
+      fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+      ...style,
     }}>
       {status || 'unknown'}
     </span>
@@ -39,10 +40,26 @@ function formatPhone(number) {
   return number
 }
 
+function FormField({ label, children }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      <label style={{ fontSize: 9, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</label>
+      {children}
+    </div>
+  )
+}
+
+const inputStyle = {
+  padding: '8px 10px', fontSize: 12, fontWeight: 500,
+  border: '2px solid #09090b', borderRadius: 4,
+  background: '#fff', color: '#09090b', outline: 'none',
+  fontFamily: 'inherit',
+}
+
 function TranscriptView({ transcript, transcriptEndRef }) {
   if (!transcript || transcript.length === 0) {
     return (
-      <div style={{ padding: 32, textAlign: 'center', color: '#a1a1aa', fontSize: 13 }}>
+      <div style={{ padding: 32, textAlign: 'center', color: '#71717a', fontSize: 12, fontWeight: 500 }}>
         No transcript available yet.
       </div>
     )
@@ -56,23 +73,19 @@ function TranscriptView({ transcript, transcriptEndRef }) {
       {transcript.map((entry, i) => {
         const isAgent = entry.role === 'agent'
         return (
-          <div key={i} style={{
-            display: 'flex',
-            justifyContent: isAgent ? 'flex-start' : 'flex-end',
-          }}>
+          <div key={i} style={{ display: 'flex', justifyContent: isAgent ? 'flex-start' : 'flex-end' }}>
             <div style={{
               maxWidth: '75%',
               padding: '8px 12px',
-              borderRadius: 8,
-              fontSize: 13,
-              lineHeight: 1.5,
-              color: '#09090b',
-              background: isAgent ? '#eff6ff' : '#f4f4f5',
-              borderLeft: isAgent ? '3px solid #2563eb' : '3px solid #a1a1aa',
+              borderRadius: 4,
+              border: '2px solid #09090b',
+              fontSize: 12, lineHeight: 1.5, color: '#09090b',
+              background: isAgent ? '#f0f7ff' : '#f5f5f0',
+              boxShadow: '2px 2px 0 0 rgba(0,0,0,1)',
             }}>
               <div style={{
-                fontSize: 10, fontWeight: 600, color: '#71717a',
-                textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4,
+                fontSize: 9, fontWeight: 700, color: '#71717a',
+                textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4,
               }}>
                 {isAgent ? 'Agent' : 'User'}
               </div>
@@ -98,28 +111,29 @@ export default function CallCenter() {
   const [liveData, setLiveData] = useState(null)
   const [recentCalls, setRecentCalls] = useState([])
   const [viewingCall, setViewingCall] = useState(null)
+  const [backendOnline, setBackendOnline] = useState(null) // null=checking, true, false
   const pollRef = useRef(null)
   const transcriptEndRef = useRef(null)
 
-  // Fetch agents, phone numbers, and recent calls on mount
   useEffect(() => {
+    // Single health check — if it fails, mark offline and stop. No retries.
     fetch('/api/agents')
-      .then(res => res.json())
-      .then(data => setAgents(Array.isArray(data) ? data : []))
-      .catch(() => {})
-
-    fetch('/api/phone-numbers')
-      .then(res => res.json())
-      .then(data => setPhoneNumbers(Array.isArray(data) ? data : []))
-      .catch(() => {})
-
-    fetch('/api/calls?limit=10')
-      .then(res => res.json())
-      .then(data => setRecentCalls(Array.isArray(data) ? data : []))
-      .catch(() => {})
+      .then(res => { if (!res.ok) throw new Error(); return res.json() })
+      .then(data => {
+        setBackendOnline(true)
+        setAgents(Array.isArray(data) ? data : [])
+        return Promise.all([
+          fetch('/api/phone-numbers').then(r => r.json()).catch(() => []),
+          fetch('/api/calls?limit=10').then(r => r.json()).catch(() => []),
+        ])
+      })
+      .then(([nums, calls]) => {
+        setPhoneNumbers(Array.isArray(nums) ? nums : [])
+        setRecentCalls(Array.isArray(calls) ? calls : [])
+      })
+      .catch(() => setBackendOnline(false))
   }, [])
 
-  // Poll live call data
   useEffect(() => {
     if (!activeCall?.call_id) return
 
@@ -143,7 +157,6 @@ export default function CallCenter() {
     }
   }, [activeCall?.call_id])
 
-  // Auto-scroll transcript
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [liveData?.transcript_object])
@@ -175,11 +188,12 @@ export default function CallCenter() {
     setViewingCall(null)
     setToNumber('')
     setCustomerName('')
-    // Refresh recent calls
-    fetch('/api/calls?limit=10')
-      .then(res => res.json())
-      .then(data => setRecentCalls(Array.isArray(data) ? data : []))
-      .catch(() => {})
+    if (backendOnline) {
+      fetch('/api/calls?limit=10')
+        .then(res => res.json())
+        .then(data => setRecentCalls(Array.isArray(data) ? data : []))
+        .catch(() => {})
+    }
   }
 
   function handleViewCall(call) {
@@ -199,64 +213,58 @@ export default function CallCenter() {
   return (
     <div>
       {/* Header */}
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 18, fontWeight: 700, color: '#09090b', letterSpacing: '-0.3px', margin: 0 }}>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#09090b', letterSpacing: '-0.3px', margin: 0, textTransform: 'uppercase' }}>
           Call Center
         </h1>
-        <p style={{ fontSize: 13, color: '#71717a', margin: '4px 0 0' }}>
+        <p style={{ fontSize: 12, color: '#71717a', margin: '6px 0 0', fontWeight: 500 }}>
           Launch and monitor AI-powered calls in real time.
         </p>
       </div>
 
+      {backendOnline === false && (
+        <div style={{
+          border: '2px solid #92400e', background: '#fef3c7', borderRadius: 6,
+          padding: '12px 16px', marginBottom: 20,
+          fontSize: 12, fontWeight: 600, color: '#92400e',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{ fontSize: 14 }}>⚠</span>
+          Backend offline — ai-core is not running on port 3000. Start it to use the Call Center.
+        </div>
+      )}
+
       {/* Launch Call Form */}
       <div style={{
-        background: '#fff', border: '1px solid #e4e4e7', borderRadius: 8,
+        background: '#fff',
+        border: '2px solid #09090b',
+        boxShadow: '4px 4px 0 0 rgba(0,0,0,1)',
+        borderRadius: 6,
         padding: '20px 24px', marginBottom: 16,
       }}>
-        <div style={{
-          fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase',
-          letterSpacing: '0.06em', marginBottom: 16,
-        }}>
+        <div style={{ fontSize: 9, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 18 }}>
           Launch Call
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-          {/* Agent Dropdown */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{
-              fontSize: 11, fontWeight: 600, color: '#71717a',
-              textTransform: 'uppercase', letterSpacing: '0.05em',
-            }}>Agent</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+          <FormField label="Agent">
             <select
               value={selectedAgent}
               onChange={e => setSelectedAgent(e.target.value)}
-              style={{
-                padding: '7px 10px', fontSize: 13, border: '1px solid #e4e4e7',
-                borderRadius: 6, background: '#fff', color: '#09090b',
-                cursor: 'pointer', outline: 'none',
-              }}
+              style={{ ...inputStyle, cursor: 'pointer' }}
             >
               <option value="">Select agent...</option>
               {agents.map(a => (
                 <option key={a.agent_id} value={a.agent_id}>{a.agent_name}</option>
               ))}
             </select>
-          </div>
+          </FormField>
 
-          {/* From Number Dropdown */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{
-              fontSize: 11, fontWeight: 600, color: '#71717a',
-              textTransform: 'uppercase', letterSpacing: '0.05em',
-            }}>From Number</label>
+          <FormField label="From Number">
             <select
               value={selectedFromNumber}
               onChange={e => setSelectedFromNumber(e.target.value)}
-              style={{
-                padding: '7px 10px', fontSize: 13, border: '1px solid #e4e4e7',
-                borderRadius: 6, background: '#fff', color: '#09090b',
-                cursor: 'pointer', outline: 'none',
-              }}
+              style={{ ...inputStyle, cursor: 'pointer' }}
             >
               <option value="">Select number...</option>
               {phoneNumbers.map(p => (
@@ -265,51 +273,41 @@ export default function CallCenter() {
                 </option>
               ))}
             </select>
-          </div>
+          </FormField>
 
-          {/* To Number */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{
-              fontSize: 11, fontWeight: 600, color: '#71717a',
-              textTransform: 'uppercase', letterSpacing: '0.05em',
-            }}>To Number</label>
+          <FormField label="To Number">
             <input
               value={toNumber}
               onChange={e => setToNumber(e.target.value)}
               placeholder="+1..."
-              style={{
-                padding: '7px 10px', fontSize: 13, border: '1px solid #e4e4e7',
-                borderRadius: 6, background: '#fff', color: '#09090b', outline: 'none',
-              }}
+              style={inputStyle}
             />
-          </div>
+          </FormField>
 
-          {/* Customer Name */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{
-              fontSize: 11, fontWeight: 600, color: '#71717a',
-              textTransform: 'uppercase', letterSpacing: '0.05em',
-            }}>Customer Name <span style={{ fontWeight: 400, textTransform: 'none' }}>(optional)</span></label>
+          <FormField label="Customer Name (optional)">
             <input
               value={customerName}
               onChange={e => setCustomerName(e.target.value)}
               placeholder="Jane Doe"
-              style={{
-                padding: '7px 10px', fontSize: 13, border: '1px solid #e4e4e7',
-                borderRadius: 6, background: '#fff', color: '#09090b', outline: 'none',
-              }}
+              style={inputStyle}
             />
-          </div>
+          </FormField>
         </div>
 
         <button
           onClick={handleLaunchCall}
           disabled={callDisabled}
+          className="nb-btn"
           style={{
-            padding: '10px 28px', fontSize: 14, fontWeight: 600, border: 'none',
-            borderRadius: 6, background: callDisabled ? '#93c5fd' : '#2563eb',
-            color: '#fff', cursor: callDisabled ? 'not-allowed' : 'pointer',
-            transition: 'background 0.15s',
+            padding: '10px 28px', fontSize: 12, fontWeight: 700,
+            border: '2px solid #09090b',
+            borderRadius: 4,
+            background: callDisabled ? '#e5e5e0' : '#09090b',
+            color: callDisabled ? '#71717a' : '#fff',
+            cursor: callDisabled ? 'not-allowed' : 'pointer',
+            textTransform: 'uppercase', letterSpacing: '0.08em',
+            boxShadow: callDisabled ? 'none' : '4px 4px 0 0 rgba(0,0,0,1)',
+            transition: 'transform 0.05s, box-shadow 0.05s',
           }}
         >
           {launching ? 'Calling...' : 'Call'}
@@ -319,110 +317,86 @@ export default function CallCenter() {
       {/* Active Call Panel */}
       {(activeCall || viewingCall) && (
         <div style={{
-          background: '#fff', border: '1px solid #e4e4e7', borderRadius: 8,
+          background: '#fff',
+          border: '2px solid #09090b',
+          boxShadow: '4px 4px 0 0 rgba(0,0,0,1)',
+          borderRadius: 6,
           padding: '20px 24px', marginBottom: 16,
         }}>
-          {/* Active call header */}
           {activeCall && !viewingCall && (
             <>
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                marginBottom: 16,
-              }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <div>
                   <div style={{
-                    fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase',
-                    letterSpacing: '0.06em', marginBottom: 6,
+                    fontSize: 9, fontWeight: 700, color: '#71717a', textTransform: 'uppercase',
+                    letterSpacing: '0.1em', marginBottom: 8,
                     display: 'flex', alignItems: 'center', gap: 8,
                   }}>
                     {!callEnded && (
                       <span style={{
                         width: 8, height: 8, borderRadius: '50%',
-                        background: currentCallData?.call_status === 'ongoing' ? '#22c55e' : '#f59e0b',
+                        background: currentCallData?.call_status === 'ongoing' ? '#16a34a' : '#f59e0b',
                         display: 'inline-block',
-                        animation: currentCallData?.call_status === 'ongoing' ? 'livePulse 1.5s infinite' : 'none',
                       }} />
                     )}
                     {callEnded ? 'Call Ended' : currentCallData?.call_status === 'ongoing' ? 'Live Call' : 'Connecting...'}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 13, color: '#09090b', fontFamily: 'monospace' }}>
+                    <span style={{ fontSize: 12, color: '#09090b', fontFamily: 'inherit', fontWeight: 600 }}>
                       {activeCall.call_id}
                     </span>
                     <StatusBadge status={currentCallData?.call_status || activeCall.call_status} />
                   </div>
                 </div>
                 {!callEnded && (
-                  <div style={{ fontSize: 12, color: '#71717a' }}>
-                    Polling every 2s
-                  </div>
+                  <div style={{ fontSize: 10, color: '#71717a', fontWeight: 500 }}>Polling every 2s</div>
                 )}
               </div>
 
-              {/* Live Transcript */}
-              <div style={{
-                fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase',
-                letterSpacing: '0.06em', marginBottom: 8,
-                display: 'flex', alignItems: 'center', gap: 8,
-              }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                 Live Transcript
                 {!callEnded && (
-                  <span style={{
-                    fontSize: 10, fontWeight: 500, color: '#22c55e',
-                    textTransform: 'none', letterSpacing: 'normal',
-                  }}>streaming</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.06em' }}>● Streaming</span>
                 )}
               </div>
               <div style={{
-                border: '1px solid #e4e4e7', borderRadius: 6, marginBottom: 16,
-                background: callEnded ? '#fafafa' : '#fff',
-                borderColor: !callEnded && currentCallData?.call_status === 'ongoing' ? '#bbf7d0' : '#e4e4e7',
+                border: '2px solid #09090b', borderRadius: 4, marginBottom: 16,
+                background: callEnded ? '#f5f5f0' : '#fff',
               }}>
-                <TranscriptView
-                  transcript={liveData?.transcript_object}
-                  transcriptEndRef={transcriptEndRef}
-                />
+                <TranscriptView transcript={liveData?.transcript_object} transcriptEndRef={transcriptEndRef} />
               </div>
 
-              {/* Call Ended Summary */}
               {callEnded && currentCallData && (
                 <div style={{
-                  border: '1px solid #e4e4e7', borderRadius: 6, padding: '16px 20px',
-                  background: '#fafafa', marginBottom: 12,
+                  border: '2px solid #09090b', borderRadius: 4,
+                  padding: '16px 20px', background: '#f5f5f0', marginBottom: 12,
                 }}>
-                  <div style={{
-                    fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase',
-                    letterSpacing: '0.06em', marginBottom: 12,
-                  }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>
                     Call Summary
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 14 }}>
                     <div>
-                      <div style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 2 }}>Duration</div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#09090b' }}>
-                        {formatDuration(currentCallData.duration_ms)}
-                      </div>
+                      <div style={{ fontSize: 9, color: '#71717a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Duration</div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: '#09090b' }}>{formatDuration(currentCallData.duration_ms)}</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 2 }}>Disconnection Reason</div>
-                      <div style={{ fontSize: 13, color: '#09090b' }}>
-                        {currentCallData.disconnection_reason || '—'}
-                      </div>
+                      <div style={{ fontSize: 9, color: '#71717a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Disconnection</div>
+                      <div style={{ fontSize: 12, color: '#09090b', fontWeight: 500 }}>{currentCallData.disconnection_reason || '—'}</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 2 }}>Status</div>
+                      <div style={{ fontSize: 9, color: '#71717a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Status</div>
                       <StatusBadge status={currentCallData.call_status} />
                     </div>
                   </div>
 
                   {currentCallData.call_analysis && (
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 2 }}>Analysis</div>
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 9, color: '#71717a', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Analysis</div>
                       <pre style={{
-                        fontSize: 12, color: '#09090b', lineHeight: 1.5,
-                        background: '#f4f4f5', padding: 12, borderRadius: 6,
-                        whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0,
+                        fontSize: 11, color: '#09090b', lineHeight: 1.5,
+                        background: '#fff', padding: 12, border: '2px solid #09090b', borderRadius: 4,
+                        whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, fontFamily: 'inherit',
                       }}>
                         {typeof currentCallData.call_analysis === 'string'
                           ? currentCallData.call_analysis
@@ -432,50 +406,40 @@ export default function CallCenter() {
                   )}
 
                   {currentCallData.recording_url && (
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 4 }}>Recording Playback</div>
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 9, color: '#71717a', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Recording</div>
                       <audio controls src={currentCallData.recording_url} style={{ width: '100%' }} />
                     </div>
                   )}
 
                   <button
                     onClick={handleNewCall}
+                    className="nb-btn"
                     style={{
-                      padding: '8px 20px', fontSize: 13, fontWeight: 600, border: 'none',
-                      borderRadius: 6, background: '#2563eb', color: '#fff', cursor: 'pointer',
-                      marginTop: 4,
+                      padding: '8px 20px', fontSize: 11, fontWeight: 700,
+                      border: '2px solid #09090b', borderRadius: 4,
+                      background: '#09090b', color: '#fff', cursor: 'pointer',
+                      textTransform: 'uppercase', letterSpacing: '0.06em',
+                      boxShadow: '3px 3px 0 0 rgba(0,0,0,1)',
+                      transition: 'transform 0.05s, box-shadow 0.05s',
                     }}
                   >
                     New Call
                   </button>
                 </div>
               )}
-
-              <style>{`
-                @keyframes livePulse {
-                  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
-                  50% { opacity: 0.6; box-shadow: 0 0 0 4px rgba(34,197,94,0); }
-                }
-              `}</style>
             </>
           )}
 
-          {/* Viewing Past Call */}
           {viewingCall && (
             <>
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                marginBottom: 16,
-              }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <div>
-                  <div style={{
-                    fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase',
-                    letterSpacing: '0.06em', marginBottom: 6,
-                  }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>
                     Call Details
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 13, color: '#09090b', fontFamily: 'monospace' }}>
+                    <span style={{ fontSize: 12, color: '#09090b', fontWeight: 600 }}>
                       {viewingCall.call_id}
                     </span>
                     <StatusBadge status={viewingCall.call_status} />
@@ -483,41 +447,39 @@ export default function CallCenter() {
                 </div>
                 <button
                   onClick={() => setViewingCall(null)}
+                  className="nb-btn-sm"
                   style={{
-                    padding: '6px 14px', fontSize: 12, border: '1px solid #e4e4e7',
-                    borderRadius: 6, background: '#fff', color: '#71717a', cursor: 'pointer',
+                    padding: '6px 14px', fontSize: 11, fontWeight: 700,
+                    border: '2px solid #09090b', borderRadius: 4,
+                    background: '#fff', color: '#09090b', cursor: 'pointer',
+                    textTransform: 'uppercase', letterSpacing: '0.05em',
+                    boxShadow: '3px 3px 0 0 rgba(0,0,0,1)',
+                    transition: 'transform 0.05s, box-shadow 0.05s',
                   }}
                 >
                   Close
                 </button>
               </div>
 
-              {/* Past call summary */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 14 }}>
                 <div>
-                  <div style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 2 }}>Duration</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#09090b' }}>
-                    {formatDuration(viewingCall.duration_ms)}
-                  </div>
+                  <div style={{ fontSize: 9, color: '#71717a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Duration</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#09090b' }}>{formatDuration(viewingCall.duration_ms)}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 2 }}>To Number</div>
-                  <div style={{ fontSize: 13, color: '#09090b' }}>
-                    {formatPhone(viewingCall.to_number)}
-                  </div>
+                  <div style={{ fontSize: 9, color: '#71717a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>To Number</div>
+                  <div style={{ fontSize: 12, color: '#09090b', fontWeight: 500 }}>{formatPhone(viewingCall.to_number)}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 2 }}>Disconnection Reason</div>
-                  <div style={{ fontSize: 13, color: '#09090b' }}>
-                    {viewingCall.disconnection_reason || '—'}
-                  </div>
+                  <div style={{ fontSize: 9, color: '#71717a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Disconnection</div>
+                  <div style={{ fontSize: 12, color: '#09090b', fontWeight: 500 }}>{viewingCall.disconnection_reason || '—'}</div>
                 </div>
               </div>
 
               {viewingCall.call_analysis && (
-                <div style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 2 }}>Analysis</div>
-                  <div style={{ fontSize: 13, color: '#09090b', lineHeight: 1.5 }}>
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 9, color: '#71717a', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Analysis</div>
+                  <div style={{ fontSize: 12, color: '#09090b', lineHeight: 1.6, fontWeight: 500 }}>
                     {typeof viewingCall.call_analysis === 'string'
                       ? viewingCall.call_analysis
                       : JSON.stringify(viewingCall.call_analysis, null, 2)}
@@ -526,25 +488,17 @@ export default function CallCenter() {
               )}
 
               {viewingCall.recording_url && (
-                <div style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 4 }}>Recording</div>
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 9, color: '#71717a', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Recording</div>
                   <audio controls src={viewingCall.recording_url} style={{ width: '100%' }} />
                 </div>
               )}
 
-              <div style={{
-                fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase',
-                letterSpacing: '0.06em', marginBottom: 8, marginTop: 8,
-              }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8, marginTop: 8 }}>
                 Transcript
               </div>
-              <div style={{
-                border: '1px solid #e4e4e7', borderRadius: 6, background: '#fafafa',
-              }}>
-                <TranscriptView
-                  transcript={viewingCall.transcript_object}
-                  transcriptEndRef={transcriptEndRef}
-                />
+              <div style={{ border: '2px solid #09090b', borderRadius: 4, background: '#f5f5f0' }}>
+                <TranscriptView transcript={viewingCall.transcript_object} transcriptEndRef={transcriptEndRef} />
               </div>
             </>
           )}
@@ -553,28 +507,33 @@ export default function CallCenter() {
 
       {/* Call History */}
       <div style={{
-        background: '#fff', border: '1px solid #e4e4e7', borderRadius: 8, overflow: 'hidden',
+        background: '#fff',
+        border: '2px solid #09090b',
+        boxShadow: '4px 4px 0 0 rgba(0,0,0,1)',
+        borderRadius: 6,
+        overflow: 'hidden',
       }}>
         <div style={{
-          fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase',
-          letterSpacing: '0.06em', padding: '16px 24px 12px',
+          fontSize: 9, fontWeight: 700, color: '#71717a', textTransform: 'uppercase',
+          letterSpacing: '0.1em', padding: '16px 24px 12px',
+          borderBottom: '2px solid #09090b', background: '#f5f5f0',
         }}>
           Recent Calls
         </div>
 
         {recentCalls.length === 0 ? (
-          <div style={{ padding: '32px 24px', textAlign: 'center', color: '#a1a1aa', fontSize: 13 }}>
+          <div style={{ padding: '32px 24px', textAlign: 'center', color: '#71717a', fontSize: 12, fontWeight: 500 }}>
             No calls yet.
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid #e4e4e7' }}>
+              <tr style={{ borderBottom: '2px solid #09090b' }}>
                 {['Call ID', 'Agent', 'To Number', 'Duration', 'Status', 'Date'].map(h => (
                   <th key={h} style={{
-                    padding: '10px 16px', textAlign: 'left', fontWeight: 600,
-                    fontSize: 11, color: '#71717a', textTransform: 'uppercase',
-                    letterSpacing: '0.05em', background: '#fafafa',
+                    padding: '10px 16px', textAlign: 'left', fontWeight: 700,
+                    fontSize: 9, color: '#71717a', textTransform: 'uppercase',
+                    letterSpacing: '0.1em', background: '#f5f5f0',
                   }}>{h}</th>
                 ))}
               </tr>
@@ -585,29 +544,29 @@ export default function CallCenter() {
                   key={call.call_id}
                   onClick={() => handleViewCall(call)}
                   style={{
-                    borderBottom: i < recentCalls.length - 1 ? '1px solid #f4f4f5' : 'none',
+                    borderBottom: i < recentCalls.length - 1 ? '1px solid #e4e4e7' : 'none',
                     cursor: 'pointer',
                     transition: 'background 0.1s',
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
+                  onMouseEnter={e => e.currentTarget.style.background = '#f5f5f0'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
-                  <td style={{ padding: '11px 16px', fontFamily: 'monospace', color: '#09090b' }}>
+                  <td style={{ padding: '11px 16px', color: '#09090b', fontWeight: 600 }}>
                     {call.call_id ? call.call_id.slice(0, 12) + '...' : '—'}
                   </td>
-                  <td style={{ padding: '11px 16px', color: '#3f3f46' }}>
+                  <td style={{ padding: '11px 16px', color: '#3f3f46', fontWeight: 500 }}>
                     {call.agent_name || '—'}
                   </td>
-                  <td style={{ padding: '11px 16px', color: '#3f3f46' }}>
+                  <td style={{ padding: '11px 16px', color: '#3f3f46', fontWeight: 500 }}>
                     {formatPhone(call.to_number)}
                   </td>
-                  <td style={{ padding: '11px 16px', color: '#3f3f46' }}>
+                  <td style={{ padding: '11px 16px', color: '#3f3f46', fontWeight: 600 }}>
                     {formatDuration(call.duration_ms)}
                   </td>
                   <td style={{ padding: '11px 16px' }}>
                     <StatusBadge status={call.call_status} />
                   </td>
-                  <td style={{ padding: '11px 16px', color: '#71717a', fontSize: 12 }}>
+                  <td style={{ padding: '11px 16px', color: '#71717a', fontSize: 11, fontWeight: 500 }}>
                     {call.created_at ? new Date(call.created_at).toLocaleString() : '—'}
                   </td>
                 </tr>

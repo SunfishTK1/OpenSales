@@ -2,21 +2,21 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const STAGE_STYLES = {
-  research:       { color: '#52525b', background: '#f4f4f5' },
-  outreach:       { color: '#1d4ed8', background: '#eff6ff' },
-  responded:      { color: '#92400e', background: '#fef3c7' },
-  discovery_call: { color: '#6d28d9', background: '#f5f3ff' },
-  high_intent:    { color: '#c2410c', background: '#fff7ed' },
-  demo:           { color: '#be185d', background: '#fdf2f8' },
-  negotiation:    { color: '#b91c1c', background: '#fef2f2' },
-  pilot:          { color: '#0f766e', background: '#f0fdfa' },
-  closed:         { color: '#166534', background: '#f0fdf4' },
+  research:       { color: '#52525b', background: '#f4f4f5', border: '1.5px solid #52525b' },
+  outreach:       { color: '#1d4ed8', background: '#eff6ff', border: '1.5px solid #1d4ed8' },
+  responded:      { color: '#92400e', background: '#fef3c7', border: '1.5px solid #92400e' },
+  discovery_call: { color: '#6d28d9', background: '#f5f3ff', border: '1.5px solid #6d28d9' },
+  high_intent:    { color: '#c2410c', background: '#fff7ed', border: '1.5px solid #c2410c' },
+  demo:           { color: '#be185d', background: '#fdf2f8', border: '1.5px solid #be185d' },
+  negotiation:    { color: '#b91c1c', background: '#fef2f2', border: '1.5px solid #b91c1c' },
+  pilot:          { color: '#0f766e', background: '#f0fdfa', border: '1.5px solid #0f766e' },
+  closed:         { color: '#166534', background: '#f0fdf4', border: '1.5px solid #166534' },
 }
 
 const STATUS_STYLES = {
-  active:   { color: '#166534', background: '#f0fdf4' },
-  rejected: { color: '#b91c1c', background: '#fef2f2' },
-  cold:     { color: '#71717a', background: '#f4f4f5' },
+  active:   { color: '#166534', background: '#f0fdf4', border: '1.5px solid #166534' },
+  rejected: { color: '#b91c1c', background: '#fef2f2', border: '1.5px solid #b91c1c' },
+  cold:     { color: '#71717a', background: '#f4f4f5', border: '1.5px solid #71717a' },
 }
 
 const SORT_OPTIONS = [
@@ -35,9 +35,11 @@ function Badge({ label, styleObj }) {
     <span style={{
       display: 'inline-block',
       padding: '2px 8px',
-      borderRadius: 4,
-      fontSize: 11.5,
-      fontWeight: 500,
+      borderRadius: 3,
+      fontSize: 11,
+      fontWeight: 700,
+      textTransform: 'uppercase',
+      letterSpacing: '0.04em',
       ...styleObj,
     }}>
       {label}
@@ -48,13 +50,14 @@ function Badge({ label, styleObj }) {
 function FilterSelect({ label, value, onChange, options }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <label style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+      <label style={{ fontSize: 9, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</label>
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
         style={{
-          padding: '6px 10px', fontSize: 13, border: '1px solid #e4e4e7',
-          borderRadius: 6, background: '#fff', color: '#09090b', cursor: 'pointer', outline: 'none',
+          padding: '7px 10px', fontSize: 12, fontWeight: 600,
+          border: '2px solid #09090b', borderRadius: 4,
+          background: '#fff', color: '#09090b', cursor: 'pointer', outline: 'none',
         }}
       >
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -101,10 +104,10 @@ export default function ProspectTable({ onSelect }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
-          <h1 style={{ fontSize: 18, fontWeight: 700, color: '#09090b', letterSpacing: '-0.3px', margin: 0 }}>Prospects</h1>
-          <p style={{ fontSize: 13, color: '#71717a', margin: '3px 0 0' }}>{prospects.length} total in pipeline</p>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: '#09090b', letterSpacing: '-0.3px', margin: 0, textTransform: 'uppercase' }}>Prospects</h1>
+          <p style={{ fontSize: 12, color: '#71717a', margin: '4px 0 0', fontWeight: 500 }}>{prospects.length} total in pipeline</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
@@ -112,28 +115,35 @@ export default function ProspectTable({ onSelect }) {
             onChange={e => setFilter(e.target.value)}
             placeholder="Search prospects..."
             style={{
-              padding: '7px 12px', fontSize: 13, border: '1px solid #e4e4e7', borderRadius: 6,
+              padding: '7px 12px', fontSize: 12, fontWeight: 500,
+              border: '2px solid #09090b', borderRadius: 4,
               background: '#fff', outline: 'none', width: 200, color: '#09090b',
             }}
           />
           <button
             onClick={() => setShowFilters(v => !v)}
+            className="nb-btn-sm"
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              padding: '7px 12px', fontSize: 13, fontWeight: 500,
-              border: `1px solid ${activeFilterCount > 0 ? '#2563eb' : '#e4e4e7'}`,
-              borderRadius: 6, background: activeFilterCount > 0 ? '#eff6ff' : '#fff',
-              color: activeFilterCount > 0 ? '#2563eb' : '#3f3f46', cursor: 'pointer',
+              padding: '7px 12px', fontSize: 11, fontWeight: 700,
+              border: '2px solid #09090b',
+              borderRadius: 4,
+              background: activeFilterCount > 0 ? '#09090b' : '#fff',
+              color: activeFilterCount > 0 ? '#fff' : '#09090b',
+              cursor: 'pointer',
+              textTransform: 'uppercase', letterSpacing: '0.05em',
+              boxShadow: '3px 3px 0 0 rgba(0,0,0,1)',
+              transition: 'transform 0.05s, box-shadow 0.05s',
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2">
               <path d="M2 4h12M4 8h8M6 12h4" strokeLinecap="round"/>
             </svg>
             Filters
             {activeFilterCount > 0 && (
               <span style={{
-                background: '#2563eb', color: '#fff', borderRadius: 10,
-                fontSize: 10, fontWeight: 700, padding: '1px 5px', lineHeight: 1.4,
+                background: '#fff', color: '#09090b', borderRadius: 10,
+                fontSize: 9, fontWeight: 700, padding: '1px 5px', lineHeight: 1.4,
               }}>{activeFilterCount}</span>
             )}
           </button>
@@ -142,8 +152,11 @@ export default function ProspectTable({ onSelect }) {
 
       {showFilters && (
         <div style={{
-          background: '#fff', border: '1px solid #e4e4e7', borderRadius: 8,
-          padding: '14px 16px', marginBottom: 12,
+          background: '#fff',
+          border: '2px solid #09090b',
+          boxShadow: '4px 4px 0 0 rgba(0,0,0,1)',
+          borderRadius: 6,
+          padding: '16px 18px', marginBottom: 14,
           display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap',
         }}>
           <FilterSelect label="Sort by" value={sortBy} onChange={setSortBy}
@@ -155,10 +168,15 @@ export default function ProspectTable({ onSelect }) {
           {activeFilterCount > 0 && (
             <button
               onClick={() => { setSortBy('recent'); setStageFilter('all'); setStatusFilter('all') }}
+              className="nb-btn-sm"
               style={{
-                padding: '6px 12px', fontSize: 12, border: '1px solid #e4e4e7',
-                borderRadius: 6, background: '#fff', color: '#71717a', cursor: 'pointer',
+                padding: '7px 14px', fontSize: 11, fontWeight: 700,
+                border: '2px solid #09090b', borderRadius: 4,
+                background: '#fff', color: '#09090b', cursor: 'pointer',
+                textTransform: 'uppercase', letterSpacing: '0.05em',
                 alignSelf: 'flex-end',
+                boxShadow: '3px 3px 0 0 rgba(0,0,0,1)',
+                transition: 'transform 0.05s, box-shadow 0.05s',
               }}
             >
               Reset
@@ -167,22 +185,28 @@ export default function ProspectTable({ onSelect }) {
         </div>
       )}
 
-      <div style={{ background: '#fff', border: '1px solid #e4e4e7', borderRadius: 8, overflow: 'hidden' }}>
+      <div style={{
+        background: '#fff',
+        border: '2px solid #09090b',
+        boxShadow: '4px 4px 0 0 rgba(0,0,0,1)',
+        borderRadius: 6,
+        overflow: 'hidden',
+      }}>
         {loading ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#a1a1aa', fontSize: 13 }}>Loading...</div>
+          <div style={{ padding: 40, textAlign: 'center', color: '#71717a', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Loading...</div>
         ) : !filtered.length ? (
-          <div style={{ padding: 48, textAlign: 'center', color: '#a1a1aa', fontSize: 13 }}>
+          <div style={{ padding: 48, textAlign: 'center', color: '#71717a', fontSize: 12, fontWeight: 500 }}>
             {filter || activeFilterCount > 0 ? 'No prospects match your filters.' : 'No prospects yet. They\'ll appear once the AI starts researching.'}
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid #e4e4e7' }}>
+              <tr style={{ borderBottom: '2px solid #09090b' }}>
                 {['Name', 'Company', 'Stage', 'Score', 'Intent', 'Status'].map(h => (
                   <th key={h} style={{
-                    padding: '10px 16px', textAlign: 'left', fontWeight: 600,
-                    fontSize: 11, color: '#71717a', textTransform: 'uppercase',
-                    letterSpacing: '0.05em', background: '#fafafa',
+                    padding: '10px 16px', textAlign: 'left', fontWeight: 700,
+                    fontSize: 9, color: '#71717a', textTransform: 'uppercase',
+                    letterSpacing: '0.1em', background: '#f5f5f0',
                   }}>{h}</th>
                 ))}
               </tr>
@@ -193,18 +217,18 @@ export default function ProspectTable({ onSelect }) {
                   key={p.id}
                   onClick={() => onSelect(p)}
                   style={{
-                    borderBottom: i < filtered.length - 1 ? '1px solid #f4f4f5' : 'none',
+                    borderBottom: i < filtered.length - 1 ? '1px solid #e4e4e7' : 'none',
                     cursor: 'pointer',
                     transition: 'background 0.1s',
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
+                  onMouseEnter={e => e.currentTarget.style.background = '#f5f5f0'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
                   <td style={{ padding: '11px 16px' }}>
-                    <div style={{ fontWeight: 500, color: '#09090b' }}>{p.name || '—'}</div>
-                    {p.title && <div style={{ fontSize: 11.5, color: '#a1a1aa', marginTop: 1 }}>{p.title}</div>}
+                    <div style={{ fontWeight: 700, color: '#09090b' }}>{p.name || '—'}</div>
+                    {p.title && <div style={{ fontSize: 10, color: '#71717a', marginTop: 2, fontWeight: 500 }}>{p.title}</div>}
                   </td>
-                  <td style={{ padding: '11px 16px', color: '#3f3f46' }}>{p.company || '—'}</td>
+                  <td style={{ padding: '11px 16px', color: '#3f3f46', fontWeight: 500 }}>{p.company || '—'}</td>
                   <td style={{ padding: '11px 16px' }}>
                     <Badge label={p.stage?.replace('_', ' ')} styleObj={STAGE_STYLES[p.stage] ?? STAGE_STYLES.research} />
                   </td>
@@ -212,7 +236,7 @@ export default function ProspectTable({ onSelect }) {
                     <ScoreBar value={p.score ?? 0} />
                   </td>
                   <td style={{ padding: '11px 16px' }}>
-                    <ScoreBar value={p.intent_score ?? 0} color="#f97316" />
+                    <ScoreBar value={p.intent_score ?? 0} color="#ea580c" />
                   </td>
                   <td style={{ padding: '11px 16px' }}>
                     <Badge label={p.status} styleObj={STATUS_STYLES[p.status] ?? STATUS_STYLES.active} />
@@ -227,13 +251,13 @@ export default function ProspectTable({ onSelect }) {
   )
 }
 
-function ScoreBar({ value, color = '#2563eb' }) {
+function ScoreBar({ value, color = '#09090b' }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-      <div style={{ width: 52, height: 4, background: '#f4f4f5', borderRadius: 2, overflow: 'hidden' }}>
+      <div style={{ width: 52, height: 6, background: '#f5f5f0', border: '1px solid #d4d4d8', borderRadius: 2, overflow: 'hidden' }}>
         <div style={{ height: '100%', width: `${value}%`, background: color, borderRadius: 2 }} />
       </div>
-      <span style={{ fontSize: 12, color: '#71717a', width: 24 }}>{value}</span>
+      <span style={{ fontSize: 11, fontWeight: 700, color: '#52525b', width: 24 }}>{value}</span>
     </div>
   )
 }

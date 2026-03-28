@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 * {
@@ -5,9 +6,9 @@
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Geist Mono', ui-monospace, 'Cascadia Code', 'SF Mono', Menlo, monospace;
   -webkit-font-smoothing: antialiased;
-  background: #f4f4f5;
+  background: #f5f5f0;
   color: #09090b;
 }
 
@@ -16,3 +17,22 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+
+/* Neo-brutalist card */
+.nb-card {
+  background: #fff;
+  border: 2px solid #09090b;
+  box-shadow: 4px 4px 0 0 rgba(0,0,0,1);
+  border-radius: 6px;
+}
+
+/* Neo-brutalist button press */
+.nb-btn:active {
+  transform: translate(2px, 2px) !important;
+  box-shadow: 2px 2px 0 0 rgba(0,0,0,1) !important;
+}
+
+.nb-btn-sm:active {
+  transform: translate(1px, 1px) !important;
+  box-shadow: 1px 1px 0 0 rgba(0,0,0,1) !important;
+}
