@@ -1,0 +1,21 @@
+{
+  "name": "opensales-ai-core",
+  "version": "1.0.0",
+  "description": "AI interrogation agent and decision engine for OpenSales",
+  "type": "module",
+  "main": "interrogation/agent.js",
+  "scripts": {
+    "interrogate": "node interrogation/agent.js",
+    "start": "node interrogation/agent.js",
+    "web": "node server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/bedrock-sdk": "^0.26.4",
+    "@anthropic-ai/sdk": "^0.80.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.4.1",
+    "express": "^5.2.1",
+    "multer": "^2.1.1",
+    "openai": "^6.33.0"
+  }
+}
