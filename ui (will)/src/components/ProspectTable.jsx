@@ -19,6 +19,17 @@ const STATUS_STYLES = {
   cold:     { color: '#71717a', background: '#f4f4f5' },
 }
 
+const SORT_OPTIONS = [
+  { value: 'recent',      label: 'Most Recent' },
+  { value: 'intent_desc', label: 'Intent: High → Low' },
+  { value: 'intent_asc',  label: 'Intent: Low → High' },
+  { value: 'score_desc',  label: 'Score: High → Low' },
+  { value: 'score_asc',   label: 'Score: Low → High' },
+]
+
+const STAGE_OPTIONS = ['all', 'research', 'outreach', 'responded', 'discovery_call', 'high_intent', 'demo', 'negotiation', 'pilot', 'closed']
+const STATUS_OPTIONS = ['all', 'active', 'rejected', 'cold']
+
 function Badge({ label, styleObj }) {
   return (
     <span style={{
@@ -34,10 +45,32 @@ function Badge({ label, styleObj }) {
   )
 }
 
+function FilterSelect({ label, value, onChange, options }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <label style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        style={{
+          padding: '6px 10px', fontSize: 13, border: '1px solid #e4e4e7',
+          borderRadius: 6, background: '#fff', color: '#09090b', cursor: 'pointer', outline: 'none',
+        }}
+      >
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </div>
+  )
+}
+
 export default function ProspectTable({ onSelect }) {
   const [prospects, setProspects] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
+  const [sortBy, setSortBy] = useState('recent')
+  const [stageFilter, setStageFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
     supabase.from('prospects').select('*').order('created_at', { ascending: false })
@@ -52,34 +85,94 @@ export default function ProspectTable({ onSelect }) {
     return () => supabase.removeChannel(ch)
   }, [])
 
-  const filtered = prospects.filter(p =>
-    !filter || [p.name, p.company, p.stage, p.email].some(v => v?.toLowerCase().includes(filter.toLowerCase()))
-  )
+  const activeFilterCount = [stageFilter !== 'all', statusFilter !== 'all', sortBy !== 'recent'].filter(Boolean).length
+
+  const filtered = prospects
+    .filter(p => !filter || [p.name, p.company, p.stage, p.email].some(v => v?.toLowerCase().includes(filter.toLowerCase())))
+    .filter(p => stageFilter === 'all' || p.stage === stageFilter)
+    .filter(p => statusFilter === 'all' || p.status === statusFilter)
+    .sort((a, b) => {
+      if (sortBy === 'intent_desc') return (b.intent_score ?? 0) - (a.intent_score ?? 0)
+      if (sortBy === 'intent_asc')  return (a.intent_score ?? 0) - (b.intent_score ?? 0)
+      if (sortBy === 'score_desc')  return (b.score ?? 0) - (a.score ?? 0)
+      if (sortBy === 'score_asc')   return (a.score ?? 0) - (b.score ?? 0)
+      return new Date(b.created_at) - new Date(a.created_at)
+    })
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div>
           <h1 style={{ fontSize: 18, fontWeight: 700, color: '#09090b', letterSpacing: '-0.3px', margin: 0 }}>Prospects</h1>
           <p style={{ fontSize: 13, color: '#71717a', margin: '3px 0 0' }}>{prospects.length} total in pipeline</p>
         </div>
-        <input
-          value={filter}
-          onChange={e => setFilter(e.target.value)}
-          placeholder="Filter prospects..."
-          style={{
-            padding: '7px 12px', fontSize: 13, border: '1px solid #e4e4e7', borderRadius: 6,
-            background: '#fff', outline: 'none', width: 200, color: '#09090b',
-          }}
-        />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+            placeholder="Search prospects..."
+            style={{
+              padding: '7px 12px', fontSize: 13, border: '1px solid #e4e4e7', borderRadius: 6,
+              background: '#fff', outline: 'none', width: 200, color: '#09090b',
+            }}
+          />
+          <button
+            onClick={() => setShowFilters(v => !v)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '7px 12px', fontSize: 13, fontWeight: 500,
+              border: `1px solid ${activeFilterCount > 0 ? '#2563eb' : '#e4e4e7'}`,
+              borderRadius: 6, background: activeFilterCount > 0 ? '#eff6ff' : '#fff',
+              color: activeFilterCount > 0 ? '#2563eb' : '#3f3f46', cursor: 'pointer',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M2 4h12M4 8h8M6 12h4" strokeLinecap="round"/>
+            </svg>
+            Filters
+            {activeFilterCount > 0 && (
+              <span style={{
+                background: '#2563eb', color: '#fff', borderRadius: 10,
+                fontSize: 10, fontWeight: 700, padding: '1px 5px', lineHeight: 1.4,
+              }}>{activeFilterCount}</span>
+            )}
+          </button>
+        </div>
       </div>
+
+      {showFilters && (
+        <div style={{
+          background: '#fff', border: '1px solid #e4e4e7', borderRadius: 8,
+          padding: '14px 16px', marginBottom: 12,
+          display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap',
+        }}>
+          <FilterSelect label="Sort by" value={sortBy} onChange={setSortBy}
+            options={SORT_OPTIONS.map(o => ({ value: o.value, label: o.label }))} />
+          <FilterSelect label="Stage" value={stageFilter} onChange={setStageFilter}
+            options={STAGE_OPTIONS.map(v => ({ value: v, label: v === 'all' ? 'All stages' : v.replace('_', ' ') }))} />
+          <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter}
+            options={STATUS_OPTIONS.map(v => ({ value: v, label: v === 'all' ? 'All statuses' : v }))} />
+          {activeFilterCount > 0 && (
+            <button
+              onClick={() => { setSortBy('recent'); setStageFilter('all'); setStatusFilter('all') }}
+              style={{
+                padding: '6px 12px', fontSize: 12, border: '1px solid #e4e4e7',
+                borderRadius: 6, background: '#fff', color: '#71717a', cursor: 'pointer',
+                alignSelf: 'flex-end',
+              }}
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      )}
 
       <div style={{ background: '#fff', border: '1px solid #e4e4e7', borderRadius: 8, overflow: 'hidden' }}>
         {loading ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#a1a1aa', fontSize: 13 }}>Loading...</div>
         ) : !filtered.length ? (
           <div style={{ padding: 48, textAlign: 'center', color: '#a1a1aa', fontSize: 13 }}>
-            {filter ? 'No prospects match your filter.' : 'No prospects yet. They\'ll appear once the AI starts researching.'}
+            {filter || activeFilterCount > 0 ? 'No prospects match your filters.' : 'No prospects yet. They\'ll appear once the AI starts researching.'}
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
