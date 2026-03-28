@@ -7,6 +7,11 @@ const STAGE_COLORS = {
   discovery_call: '#a78bfa', high_intent: '#f59e0b', demo: '#fb923c',
   negotiation: '#f43f5e', pilot: '#10b981', closed: '#22c55e',
 }
+const ACTION_LABELS = {
+  email_draft: 'Email drafted', research: 'Researched', score: 'Scored',
+  stage_change: 'Stage updated', schedule_call: 'Call scheduled',
+  intent_score: 'Intent scored', spin_demo: 'Demo generated',
+}
 
 function timeAgo(ts) {
   const diff = Math.floor((Date.now() - new Date(ts)) / 1000)
@@ -16,7 +21,7 @@ function timeAgo(ts) {
   return new Date(ts).toLocaleDateString()
 }
 
-function DonutChart({ segments, size = 100, thickness = 20 }) {
+function DonutChart({ segments, size = 96, thickness = 18 }) {
   const r = (size - thickness) / 2
   const cx = size / 2
   const circumference = 2 * Math.PI * r
@@ -39,7 +44,7 @@ function DonutChart({ segments, size = 100, thickness = 20 }) {
   )
 }
 
-const nbCard = { background: '#fff', border: '2px solid #09090b', boxShadow: '4px 4px 0 0 rgba(0,0,0,1)', borderRadius: 6 }
+const card = { background: '#fff', border: '2px solid #09090b', boxShadow: '4px 4px 0 0 rgba(0,0,0,1)', borderRadius: 6 }
 
 export default function Dashboard({ onNavigate }) {
   const [data, setData] = useState(null)
@@ -52,17 +57,20 @@ export default function Dashboard({ onNavigate }) {
         { data: tasks },
         { data: recentRuns },
         { data: pList },
+        { data: calls },
+        { data: topProspects },
       ] = await Promise.all([
         supabase.from('prospects').select('stage, score, status'),
         supabase.from('communications').select('channel, direction, status'),
         supabase.from('tasks').select('id, type, status, scheduled_for, prospect_id').eq('status', 'pending').order('created_at', { ascending: false }).limit(4),
-        supabase.from('agent_runs').select('id, action, reasoning, prospect_id, created_at').order('created_at', { ascending: false }).limit(4),
+        supabase.from('agent_runs').select('id, action, reasoning, prospect_id, created_at').order('created_at', { ascending: false }).limit(5),
         supabase.from('prospects').select('id, name, company'),
+        supabase.from('calls').select('agent_name, call_status, duration_ms').eq('call_status', 'ended'),
+        supabase.from('prospects').select('id, name, company, stage, score, intent_score, status').order('score', { ascending: false }).limit(5),
       ])
 
       const pById = {}
       ;(pList ?? []).forEach(p => { pById[p.id] = p })
-
       const ps = prospects ?? []
       const cs = comms ?? []
 
@@ -72,14 +80,24 @@ export default function Dashboard({ onNavigate }) {
       const emailsOut = cs.filter(c => c.channel === 'email' && c.direction === 'outbound').length
       const emailsIn = cs.filter(c => c.direction === 'inbound').length
       const replyRate = emailsOut > 0 ? Math.round((emailsIn / emailsOut) * 100) : 0
-
       const scored = ps.filter(p => p.score > 0)
       const avgScore = scored.length > 0 ? Math.round(scored.reduce((s, p) => s + p.score, 0) / scored.length) : 0
 
+      // Agent leaderboard from calls
+      const agentMap = {}
+      ;(calls ?? []).forEach(c => {
+        const name = c.agent_name || 'Unknown Agent'
+        if (!agentMap[name]) agentMap[name] = { calls: 0, totalMs: 0 }
+        agentMap[name].calls++
+        agentMap[name].totalMs += c.duration_ms || 0
+      })
+      const agentLeaderboard = Object.entries(agentMap)
+        .map(([name, stats]) => ({ name, calls: stats.calls, avgMin: stats.calls > 0 ? Math.round(stats.totalMs / stats.calls / 60000 * 10) / 10 : 0 }))
+        .sort((a, b) => b.calls - a.calls)
+        .slice(0, 5)
+
       setData({
-        total: ps.length,
-        closed: byStage.closed,
-        byStage,
+        total: ps.length, closed: byStage.closed, byStage,
         active: ps.filter(p => p.status === 'active').length,
         cold: ps.filter(p => p.status === 'cold').length,
         rejected: ps.filter(p => p.status === 'rejected').length,
@@ -88,6 +106,9 @@ export default function Dashboard({ onNavigate }) {
         upcomingTasks: tasks ?? [],
         recentRuns: recentRuns ?? [],
         pById,
+        agentLeaderboard,
+        topProspects: topProspects ?? [],
+        totalCalls: (calls ?? []).length,
       })
     }
     load()
@@ -96,152 +117,203 @@ export default function Dashboard({ onNavigate }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'prospects' }, load)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'agent_runs' }, load)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, load)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'calls' }, load)
       .subscribe()
     return () => supabase.removeChannel(ch)
   }, [])
 
-  if (!data) return (
-    <div style={{ padding: 40, color: '#71717a', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-      Loading...
-    </div>
-  )
+  if (!data) return <div style={{ padding: 40, color: '#71717a', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Loading...</div>
 
   const maxStage = Math.max(...Object.values(data.byStage), 1)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-      <div style={{ marginBottom: 4 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#09090b', margin: 0, textTransform: 'uppercase' }}>Pipeline Overview</h1>
-        <p style={{ fontSize: 12, color: '#71717a', margin: '6px 0 0', fontWeight: 500 }}>Real-time metrics from your AI sales pipeline.</p>
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
         {[
-          { label: 'Active Prospects', value: data.total - data.closed, accent: '#2563eb', nav: 'prospects' },
+          { label: 'In Pipeline', value: data.total - data.closed, accent: '#2563eb', nav: 'prospects' },
           { label: 'Reply Rate', value: `${data.replyRate}%`, accent: '#22c55e' },
           { label: 'Avg Fit Score', value: `${data.avgScore}/100`, accent: '#f59e0b' },
           { label: 'Deals Closed', value: data.closed, accent: '#10b981', nav: 'prospects' },
+          { label: 'Total Calls', value: data.totalCalls, accent: '#8b5cf6', nav: 'calls' },
         ].map(({ label, value, accent, nav }) => (
-          <div
-            key={label}
-            onClick={() => nav && onNavigate?.(nav)}
-            className={nav ? 'nb-btn-sm' : ''}
-            style={{
-              ...nbCard,
-              padding: '18px 20px',
-              borderLeft: `4px solid ${accent}`,
-              cursor: nav ? 'pointer' : 'default',
-              transition: 'transform 0.05s, box-shadow 0.05s',
-            }}
-          >
-            <div style={{ fontSize: 9, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>{label}</div>
-            <div style={{ fontSize: 30, fontWeight: 700, color: '#09090b', letterSpacing: '-0.5px' }}>{value}</div>
-            {nav && <div style={{ fontSize: 10, color: accent, marginTop: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>View →</div>}
+          <div key={label} onClick={() => nav && onNavigate?.(nav)} style={{
+            ...card,
+            padding: '16px 18px',
+            borderLeft: `4px solid ${accent}`,
+            cursor: nav ? 'pointer' : 'default',
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{label}</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: '#09090b', letterSpacing: '-0.5px' }}>{value}</div>
           </div>
         ))}
       </div>
 
-      {/* Funnel + Status */}
-      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 12 }}>
+      {/* Pipeline + right column */}
+      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 10 }}>
 
-        <div style={{ ...nbCard, padding: '20px 22px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Pipeline</div>
-            <button onClick={() => onNavigate?.('prospects')} style={{ fontSize: 10, color: '#09090b', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>View all →</button>
+        {/* Funnel */}
+        <div style={{ ...card, padding: '18px 20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Pipeline</div>
+            <button onClick={() => onNavigate?.('prospects')} style={{ fontSize: 10, fontWeight: 700, color: '#09090b', background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em' }}>View all →</button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {STAGES.map(stage => (
               <div key={stage} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 8, height: 8, borderRadius: 2, background: STAGE_COLORS[stage], flexShrink: 0, border: '1px solid rgba(0,0,0,0.15)' }} />
-                <div style={{ width: 110, fontSize: 10, color: '#52525b', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600, flexShrink: 0 }}>
+                <div style={{ width: 8, height: 8, borderRadius: 2, background: STAGE_COLORS[stage], flexShrink: 0 }} />
+                <div style={{ width: 112, fontSize: 11, fontWeight: 600, color: '#52525b', textTransform: 'capitalize', flexShrink: 0 }}>
                   {stage.replace(/_/g, ' ')}
                 </div>
-                <div style={{ flex: 1, height: 8, background: '#f5f5f0', border: '1px solid #e4e4e7', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ flex: 1, height: 7, background: '#f5f5f0', border: '1px solid #e4e4e7', borderRadius: 2, overflow: 'hidden' }}>
                   <div style={{
-                    height: '100%', borderRadius: 2, background: STAGE_COLORS[stage],
+                    height: '100%', background: STAGE_COLORS[stage],
                     width: `${(data.byStage[stage] / maxStage) * 100}%`,
                     opacity: data.byStage[stage] === 0 ? 0.15 : 1,
                     transition: 'width 0.4s ease',
                   }} />
                 </div>
-                <div style={{ width: 22, fontSize: 12, fontWeight: 700, color: '#09090b', textAlign: 'right', flexShrink: 0 }}>{data.byStage[stage]}</div>
+                <div style={{ width: 20, fontSize: 12, fontWeight: 700, color: '#09090b', textAlign: 'right', flexShrink: 0 }}>{data.byStage[stage]}</div>
               </div>
             ))}
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Status + Approvals */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-          <div style={{ ...nbCard, padding: '18px 20px', flex: 1 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>Status</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ ...card, padding: '16px 18px', flex: 1 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Prospect Status</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <DonutChart segments={[
                 { value: data.active, color: '#2563eb' },
                 { value: data.cold, color: '#94a3b8' },
                 { value: data.rejected, color: '#f43f5e' },
               ]} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {[
                   { label: 'Active', value: data.active, color: '#2563eb' },
                   { label: 'Cold', value: data.cold, color: '#94a3b8' },
                   { label: 'Rejected', value: data.rejected, color: '#f43f5e' },
                 ].map(({ label, value, color }) => (
-                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: 2, background: color, border: '1px solid rgba(0,0,0,0.2)' }} />
-                    <span style={{ fontSize: 11, color: '#52525b', fontWeight: 500 }}>{label}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#09090b', marginLeft: 'auto', paddingLeft: 12 }}>{value}</span>
+                  <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: 2, background: color }} />
+                    <span style={{ fontSize: 12, color: '#52525b', fontWeight: 500 }}>{label}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#09090b', marginLeft: 'auto', paddingLeft: 10 }}>{value}</span>
                   </div>
                 ))}
               </div>
             </div>
           </div>
 
-          <div
-            onClick={() => onNavigate?.('tasks')}
-            className="nb-btn-sm"
-            style={{
-              ...nbCard,
-              padding: '16px 20px', cursor: 'pointer',
-              background: data.pendingTasks > 0 ? '#fffbeb' : '#fff',
-              borderColor: data.pendingTasks > 0 ? '#f59e0b' : '#09090b',
-              transition: 'transform 0.05s, box-shadow 0.05s',
-            }}
-          >
-            <div style={{ fontSize: 9, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Pending Approvals</div>
+          <div onClick={() => onNavigate?.('tasks')} style={{
+            ...card,
+            padding: '16px 18px', cursor: 'pointer',
+            background: data.pendingTasks > 0 ? '#fffbeb' : '#fff',
+            borderColor: data.pendingTasks > 0 ? '#f59e0b' : '#09090b',
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Pending Approvals</div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span style={{ fontSize: 30, fontWeight: 700, color: data.pendingTasks > 0 ? '#92400e' : '#09090b' }}>{data.pendingTasks}</span>
-              {data.pendingTasks > 0 && <span style={{ fontSize: 11, color: '#92400e', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>need review →</span>}
+              <span style={{ fontSize: 28, fontWeight: 700, color: data.pendingTasks > 0 ? '#92400e' : '#09090b' }}>{data.pendingTasks}</span>
+              {data.pendingTasks > 0 && <span style={{ fontSize: 11, color: '#92400e', fontWeight: 700 }}>need review →</span>}
+              {data.pendingTasks === 0 && <span style={{ fontSize: 11, color: '#71717a', fontWeight: 500 }}>all clear</span>}
             </div>
           </div>
 
         </div>
       </div>
 
-      {/* Activity + Tasks */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      {/* Advanced Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 10 }}>
 
-        <div style={{ ...nbCard, padding: '20px 22px' }}>
+        {/* Top Leads */}
+        <div style={{ ...card, padding: '18px 20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Recent Activity</div>
-            <button onClick={() => onNavigate?.('activity')} style={{ fontSize: 10, color: '#09090b', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>See all →</button>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Top Leads by Score</div>
+            <button onClick={() => onNavigate?.('prospects')} style={{ fontSize: 10, fontWeight: 700, color: '#09090b', background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em' }}>View all →</button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {data.recentRuns.length === 0 && <div style={{ fontSize: 12, color: '#71717a', fontWeight: 500 }}>No activity yet.</div>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {data.topProspects.length === 0 && <div style={{ fontSize: 12, color: '#71717a' }}>No scored prospects yet.</div>}
+            {data.topProspects.map((p, i) => (
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }} onClick={() => onNavigate?.('prospects')}>
+                <div style={{ width: 18, fontSize: 11, fontWeight: 700, color: '#a1a1aa', textAlign: 'right', flexShrink: 0 }}>#{i + 1}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#09090b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                  <div style={{ fontSize: 10, color: '#71717a', fontWeight: 500 }}>{p.company}</div>
+                </div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#52525b', textTransform: 'capitalize', flexShrink: 0, background: '#f5f5f0', padding: '2px 7px', borderRadius: 3, border: '1px solid #e4e4e7' }}>
+                  {p.stage?.replace(/_/g, ' ')}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <div style={{ width: 48, height: 6, background: '#f5f5f0', border: '1px solid #e4e4e7', borderRadius: 2, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${p.score ?? 0}%`, background: '#2563eb', borderRadius: 2 }} />
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#09090b', width: 22 }}>{p.score ?? 0}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Agent Leaderboard */}
+        <div style={{ ...card, padding: '18px 20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Agent Leaderboard</div>
+            <button onClick={() => onNavigate?.('calls')} style={{ fontSize: 10, fontWeight: 700, color: '#09090b', background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Calls →</button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+            {data.agentLeaderboard.length === 0 && <div style={{ fontSize: 12, color: '#71717a' }}>No completed calls yet.</div>}
+            {data.agentLeaderboard.map((agent, i) => {
+              const maxCalls = data.agentLeaderboard[0]?.calls || 1
+              return (
+                <div key={agent.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 14, fontSize: 10, fontWeight: 700, color: '#a1a1aa', flexShrink: 0 }}>#{i + 1}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#09090b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>
+                      {agent.name}
+                    </div>
+                    <div style={{ height: 5, background: '#f5f5f0', border: '1px solid #e4e4e7', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${(agent.calls / maxCalls) * 100}%`, background: '#8b5cf6', borderRadius: 2 }} />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#09090b', flexShrink: 0, textAlign: 'right' }}>
+                    {agent.calls} <span style={{ fontSize: 9, color: '#71717a', fontWeight: 500 }}>calls</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: '#71717a', fontWeight: 500, flexShrink: 0, width: 36, textAlign: 'right' }}>
+                    {agent.avgMin}m avg
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+      </div>
+
+      {/* Activity + Tasks */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+
+        <div style={{ ...card, padding: '18px 20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Recent AI Activity</div>
+            <button onClick={() => onNavigate?.('activity')} style={{ fontSize: 10, fontWeight: 700, color: '#09090b', background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em' }}>See all →</button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+            {data.recentRuns.length === 0 && <div style={{ fontSize: 12, color: '#71717a' }}>No activity yet.</div>}
             {data.recentRuns.map(run => {
               const p = data.pById[run.prospect_id]
               return (
-                <div key={run.id} style={{ display: 'flex', gap: 10 }}>
-                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#09090b', border: '2px solid #09090b', marginTop: 4, flexShrink: 0 }} />
+                <div key={run.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#09090b', marginTop: 5, flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#09090b', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
-                      {run.action?.replace(/_/g, ' ')}
-                      {p && <span style={{ fontWeight: 500, color: '#71717a', textTransform: 'none', letterSpacing: 'normal' }}> · {p.name}</span>}
-                      <span style={{ fontSize: 10, color: '#71717a', float: 'right', fontWeight: 500, textTransform: 'none', letterSpacing: 'normal' }}>{timeAgo(run.created_at)}</span>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#09090b' }}>
+                      {ACTION_LABELS[run.action] ?? run.action?.replace(/_/g, ' ')}
+                      {p && <span style={{ fontWeight: 400, color: '#71717a' }}> · {p.name}</span>}
+                      <span style={{ fontSize: 10, color: '#a1a1aa', float: 'right' }}>{timeAgo(run.created_at)}</span>
                     </div>
                     {run.reasoning && (
-                      <div style={{ fontSize: 11, color: '#52525b', marginTop: 2, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', fontWeight: 500 }}>
+                      <div style={{ fontSize: 11, color: '#71717a', marginTop: 2, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical' }}>
                         {run.reasoning}
                       </div>
                     )}
@@ -252,24 +324,24 @@ export default function Dashboard({ onNavigate }) {
           </div>
         </div>
 
-        <div style={{ ...nbCard, padding: '20px 22px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Upcoming Tasks</div>
-            <button onClick={() => onNavigate?.('tasks')} style={{ fontSize: 10, color: '#09090b', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>See all →</button>
+        <div style={{ ...card, padding: '18px 20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Upcoming Tasks</div>
+            <button onClick={() => onNavigate?.('tasks')} style={{ fontSize: 10, fontWeight: 700, color: '#09090b', background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.05em' }}>See all →</button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {data.upcomingTasks.length === 0 && <div style={{ fontSize: 12, color: '#71717a', fontWeight: 500 }}>No pending tasks.</div>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {data.upcomingTasks.length === 0 && <div style={{ fontSize: 12, color: '#71717a' }}>No pending tasks.</div>}
             {data.upcomingTasks.map(task => {
               const p = data.pById[task.prospect_id]
               return (
-                <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: '#f5f5f0', border: '1.5px solid #e4e4e7', borderRadius: 4 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: 2, background: '#f59e0b', flexShrink: 0, border: '1px solid rgba(0,0,0,0.2)' }} />
-                  <div style={{ flex: 1, fontSize: 11, fontWeight: 700, color: '#09090b', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', background: '#f5f5f0', border: '1.5px solid #e4e4e7', borderRadius: 4 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: 2, background: '#f59e0b', flexShrink: 0 }} />
+                  <div style={{ flex: 1, fontSize: 12, fontWeight: 600, color: '#09090b', textTransform: 'capitalize' }}>
                     {task.type?.replace(/_/g, ' ')}
-                    {p && <span style={{ fontWeight: 500, color: '#71717a', textTransform: 'none', letterSpacing: 'normal' }}> · {p.name}</span>}
+                    {p && <span style={{ fontWeight: 400, color: '#71717a' }}> · {p.name}</span>}
                   </div>
                   {task.scheduled_for && (
-                    <span style={{ fontSize: 10, color: '#71717a', flexShrink: 0, fontWeight: 500 }}>
+                    <span style={{ fontSize: 11, color: '#71717a', flexShrink: 0 }}>
                       {new Date(task.scheduled_for).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                     </span>
                   )}

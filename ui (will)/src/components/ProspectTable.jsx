@@ -70,7 +70,7 @@ export default function ProspectTable({ onSelect }) {
   const [prospects, setProspects] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
-  const [sortBy, setSortBy] = useState('recent')
+  const [sortBy, setSortBy] = useState('score_desc')
   const [stageFilter, setStageFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [showFilters, setShowFilters] = useState(false)
@@ -88,7 +88,7 @@ export default function ProspectTable({ onSelect }) {
     return () => supabase.removeChannel(ch)
   }, [])
 
-  const activeFilterCount = [stageFilter !== 'all', statusFilter !== 'all', sortBy !== 'recent'].filter(Boolean).length
+  const activeFilterCount = [stageFilter !== 'all', statusFilter !== 'all', sortBy !== 'score_desc'].filter(Boolean).length
 
   const filtered = prospects
     .filter(p => !filter || [p.name, p.company, p.stage, p.email].some(v => v?.toLowerCase().includes(filter.toLowerCase())))
@@ -106,7 +106,7 @@ export default function ProspectTable({ onSelect }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: '#09090b', letterSpacing: '-0.3px', margin: 0, textTransform: 'uppercase' }}>Prospects</h1>
+          <h1 className="mono" style={{ fontSize: 20, fontWeight: 700, color: '#09090b', letterSpacing: '-0.3px', margin: 0, textTransform: 'uppercase' }}>Prospects</h1>
           <p style={{ fontSize: 12, color: '#71717a', margin: '4px 0 0', fontWeight: 500 }}>{prospects.length} total in pipeline</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -167,7 +167,7 @@ export default function ProspectTable({ onSelect }) {
             options={STATUS_OPTIONS.map(v => ({ value: v, label: v === 'all' ? 'All statuses' : v }))} />
           {activeFilterCount > 0 && (
             <button
-              onClick={() => { setSortBy('recent'); setStageFilter('all'); setStatusFilter('all') }}
+              onClick={() => { setSortBy('score_desc'); setStageFilter('all'); setStatusFilter('all') }}
               className="nb-btn-sm"
               style={{
                 padding: '7px 14px', fontSize: 11, fontWeight: 700,

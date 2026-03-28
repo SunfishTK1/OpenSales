@@ -177,7 +177,7 @@ export default function TaskQueue() {
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#09090b', letterSpacing: '-0.3px', margin: 0, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <h1 className="mono" style={{ fontSize: 20, fontWeight: 700, color: '#09090b', letterSpacing: '-0.3px', margin: 0, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 10 }}>
           Approvals
           {tasks.length > 0 && (
             <span style={{

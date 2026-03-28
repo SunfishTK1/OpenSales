@@ -23,7 +23,11 @@ app.use((req, res, next) => {
 });
 
 const upload = multer({ storage: multer.memoryStorage() });
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let _openai = null;
+function getOpenAI() {
+  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return _openai;
+}
 
 // ─── Clients ──────────────────────────────────────────────────────────────────
 
@@ -149,7 +153,7 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
     const readable = Readable.from(req.file.buffer);
     readable.path = 'audio.webm';
 
-    const transcription = await openai.audio.transcriptions.create({
+    const transcription = await getOpenAI().audio.transcriptions.create({
       file: readable,
       model: 'whisper-1',
     });
@@ -167,7 +171,7 @@ app.post('/api/speak', async (req, res) => {
   if (!text?.trim()) return res.status(400).json({ error: 'No text provided' });
 
   try {
-    const mp3 = await openai.audio.speech.create({
+    const mp3 = await getOpenAI().audio.speech.create({
       model: 'tts-1',
       voice: 'nova',       // natural, clear female voice
       input: text,

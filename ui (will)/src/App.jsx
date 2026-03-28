@@ -56,7 +56,7 @@ export default function App() {
         <div style={{ padding: '20px 20px 16px', borderBottom: '2px solid #09090b' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <img src="/logo.png" alt="OpenSales" style={{ width: 32, height: 32, objectFit: 'contain', display: 'block', border: '2px solid #09090b', borderRadius: 4 }} />
-            <span style={{ color: '#09090b', fontWeight: 700, fontSize: 14, letterSpacing: '-0.2px', textTransform: 'uppercase' }}>OpenSales</span>
+            <span className="mono" style={{ color: '#09090b', fontWeight: 700, fontSize: 14, letterSpacing: '-0.2px', textTransform: 'uppercase' }}>OpenSales</span>
           </div>
         </div>
 
@@ -120,7 +120,7 @@ export default function App() {
           padding: '0 28px', height: 50,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#09090b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          <div className="mono" style={{ fontSize: 13, fontWeight: 700, color: '#09090b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             {NAV.find(n => n.id === view)?.label}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

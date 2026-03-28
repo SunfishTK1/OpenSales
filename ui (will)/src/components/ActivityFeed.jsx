@@ -66,7 +66,7 @@ export default function ActivityFeed() {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#09090b', letterSpacing: '-0.3px', margin: 0, textTransform: 'uppercase' }}>Agent Activity</h1>
+        <h1 className="mono" style={{ fontSize: 20, fontWeight: 700, color: '#09090b', letterSpacing: '-0.3px', margin: 0, textTransform: 'uppercase' }}>Agent Activity</h1>
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6,
           padding: '3px 10px', borderRadius: 3,
