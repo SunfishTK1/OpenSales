@@ -505,7 +505,7 @@ app.get('/api/calls/:callId/live', async (req, res) => {
 app.post('/api/calls/:callId/summarize', async (req, res) => {
   if (!BEDROCK_API_KEY) return res.status(500).json({ error: 'BEDROCK_API_KEY not set' });
 
-  const { transcript } = req.body;
+  const { transcript, customer_name } = req.body;
   if (!transcript) return res.status(400).json({ error: 'transcript is required' });
 
   const prompt = `You are a sales call analyst. Summarize this sales call transcript concisely.
@@ -534,7 +534,41 @@ ${transcript}`;
     if (!bedrockRes.ok) throw new Error(data.message || JSON.stringify(data));
 
     const summary = data.output.message.content[0].text;
-    res.json({ summary });
+
+    // Save summary to prospect CRM — match by customer_name
+    let prospect = null;
+    const name = customer_name || '';
+    if (name) {
+      const { data: matches } = await supabase
+        .from('prospects')
+        .select('id, name, notes')
+        .ilike('name', `%${name}%`)
+        .limit(1);
+
+      if (matches && matches.length > 0) {
+        prospect = matches[0];
+        const callDate = new Date().toISOString().slice(0, 10);
+        const updatedNotes = `[Call Summary — ${callDate}]\n${summary}\n\n${prospect.notes || ''}`;
+
+        await supabase
+          .from('prospects')
+          .update({ notes: updatedNotes })
+          .eq('id', prospect.id);
+
+        await supabase
+          .from('communications')
+          .insert({
+            prospect_id: prospect.id,
+            channel: 'call',
+            direction: 'outbound',
+            subject: `Call Summary — ${callDate}`,
+            content: summary,
+            status: 'completed',
+          });
+      }
+    }
+
+    res.json({ summary, prospect: prospect ? { id: prospect.id, name: prospect.name } : null });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

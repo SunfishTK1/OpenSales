@@ -6,11 +6,13 @@ import ActivityFeed from './components/ActivityFeed'
 import TaskQueue from './components/TaskQueue'
 import OnboardingWizard from './components/OnboardingWizard'
 import CallCenter from './components/CallCenter'
+import CRM from './components/CRM'
 
 const NAV = [
   { id: 'dashboard', label: 'Overview' },
   { id: 'prospects', label: 'Prospects' },
   { id: 'calls', label: 'Call Center' },
+  { id: 'crm', label: 'CRM' },
   { id: 'activity', label: 'Activity' },
   { id: 'tasks', label: 'Approvals' },
 ]
@@ -159,6 +161,7 @@ export default function App() {
           {view === 'dashboard' && <Dashboard onNavigate={setView} />}
           {view === 'prospects' && <ProspectTable onSelect={handleSelectProspect} />}
           {view === 'calls' && <CallCenter />}
+          {view === 'crm' && <CRM />}
           {view === 'activity' && <ActivityFeed />}
           {view === 'tasks' && <TaskQueue />}
         </div>

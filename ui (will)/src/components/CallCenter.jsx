@@ -141,6 +141,7 @@ export default function CallCenter() {
   const [viewingCall, setViewingCall] = useState(null)
   const [summarizing, setSummarizing] = useState(false)
   const [summary, setSummary] = useState(null)
+  const [linkedProspect, setLinkedProspect] = useState(null)
   const [backendOnline, setBackendOnline] = useState(null) // null=checking, true, false
   const pollRef = useRef(null)
   const transcriptEndRef = useRef(null)
@@ -252,15 +253,24 @@ export default function CallCenter() {
     if (!transcript) return
     setSummarizing(true)
     setSummary(null)
+    setLinkedProspect(null)
+
+    const customerName = callData?.customer_name
+      || callData?.retell_llm_dynamic_variables?.customer_name
+      || callData?.collected_variables?.customer_name
+      || callData?.metadata?.customer_name
+      || ''
+
     try {
       const res = await fetch(`/api/calls/${callData.call_id}/summarize`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript }),
+        body: JSON.stringify({ transcript, customer_name: customerName }),
       })
       const data = await res.json()
       if (data.summary) setSummary(data.summary)
       else setSummary('Failed to generate summary.')
+      if (data.prospect) setLinkedProspect(data.prospect)
     } catch {
       setSummary('Failed to generate summary.')
     }
@@ -484,10 +494,15 @@ export default function CallCenter() {
                       <div style={{
                         fontSize: 12, color: '#09090b', lineHeight: 1.7, fontWeight: 500,
                         background: '#fff', padding: 14, border: '2px solid #09090b', borderRadius: 4,
-                        whiteSpace: 'pre-wrap',
-                      }}>
-                        {summary}
+                      }} className="summary-md">
+                        <Markdown>{summary}</Markdown>
                       </div>
+                      {linkedProspect && (
+                        <div style={{ marginTop: 8, fontSize: 11, fontWeight: 600, color: '#166534', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+                          Saved to CRM — {linkedProspect.name}
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -625,6 +640,12 @@ export default function CallCenter() {
                   }} className="summary-md">
                     <Markdown>{summary}</Markdown>
                   </div>
+                  {linkedProspect && (
+                    <div style={{ marginTop: 8, fontSize: 11, fontWeight: 600, color: '#166534', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+                      Saved to CRM — {linkedProspect.name}
+                    </div>
+                  )}
                 </div>
               )}
 
