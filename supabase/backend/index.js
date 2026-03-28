@@ -371,6 +371,77 @@ app.post('/demo/simulate', async (req, res) => {
   res.json({ prospect_id: pid, steps, message: 'Full journey simulated — check the dashboard!' })
 })
 
+// ─── RETELL SYNC ─────────────────────────────────────────────────────────────
+
+async function getExistingCallIds() {
+  const { data } = await supabase.from('communications').select('subject').eq('channel', 'call').like('subject', 'retell:%')
+  return new Set((data || []).map(r => r.subject.replace('retell:', '')))
+}
+
+async function findOrCreateProspect(customerName, customerEmail) {
+  if (customerEmail) {
+    const { data } = await supabase.from('prospects').select('*').eq('email', customerEmail.trim()).single()
+    if (data) return data
+  }
+  if (customerName) {
+    const { data } = await supabase.from('prospects').select('*').ilike('name', customerName.trim()).single()
+    if (data) return data
+  }
+  const { data, error } = await supabase.from('prospects').insert({ name: customerName || 'Unknown', email: customerEmail?.trim() || null, stage: 'outreach', score: 0, source: 'imported', notes: 'Auto-created from Retell call sync.' }).select().single()
+  if (error) throw new Error(`Failed to create prospect: ${error.message}`)
+  return data
+}
+
+async function syncRetellCalls() {
+  const apiKey = process.env.RETELL_API_KEY
+  if (!apiKey) throw new Error('RETELL_API_KEY not set in .env')
+
+  const res = await fetch('https://api.retellai.com/v2/list-calls', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+  if (!res.ok) throw new Error(`Retell API error: ${res.status}`)
+  const calls = await res.json()
+
+  const supabaseCalls = calls.filter(c => c.agent_name?.toLowerCase().includes('supabase'))
+  const existingCallIds = await getExistingCallIds()
+
+  let synced = 0
+  for (const call of supabaseCalls) {
+    if (existingCallIds.has(call.call_id)) continue
+
+    const vars = call.retell_llm_dynamic_variables || {}
+    const analysis = call.call_analysis || {}
+    if (!vars.customer_name && !vars.customer_email) continue
+
+    const prospect = await findOrCreateProspect(vars.customer_name, vars.customer_email)
+
+    const intentScore = analysis.call_successful ? (analysis.user_sentiment === 'Positive' ? 78 : 45) : 0
+    const newStage = analysis.call_successful && analysis.user_sentiment === 'Positive' ? 'responded' : prospect.stage
+
+    await supabase.from('communications').insert({ prospect_id: prospect.id, channel: 'call', direction: 'outbound', subject: `retell:${call.call_id}`, content: call.transcript || '(no transcript)', status: analysis.call_successful ? 'replied' : 'sent' })
+    await supabase.from('agent_runs').insert({ prospect_id: prospect.id, action: 'schedule_call', reasoning: analysis.call_summary || `Retell call completed. Sentiment: ${analysis.user_sentiment}.`, result: { call_id: call.call_id, duration_ms: call.duration_ms, call_successful: analysis.call_successful, user_sentiment: analysis.user_sentiment, in_voicemail: analysis.in_voicemail, intent_score: intentScore } })
+
+    if (analysis.call_successful && intentScore > (prospect.intent_score || 0)) {
+      await supabase.from('prospects').update({ stage: newStage, intent_score: intentScore }).eq('id', prospect.id)
+    }
+    synced++
+  }
+
+  return { total_supabase_calls: supabaseCalls.length, new_calls_synced: synced }
+}
+
+// POST /sync/calls — trigger from UI button
+app.post('/sync/calls', async (req, res) => {
+  try {
+    const result = await syncRetellCalls()
+    res.json(result)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ─── HEALTH ───────────────────────────────────────────────────────────────────
 app.get('/health', (_, res) => res.json({ ok: true }))
 
@@ -399,6 +470,7 @@ app.get('/', (_, res) => {
       'POST /tool/spin_up_demo',
       'GET  /pipeline/summary',
       'POST /demo/simulate',
+      'POST /sync/calls',
     ],
   })
 })
