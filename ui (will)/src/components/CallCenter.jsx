@@ -39,11 +39,35 @@ function formatPhone(number) {
   return number
 }
 
-function TranscriptView({ transcript, transcriptEndRef }) {
-  if (!transcript || transcript.length === 0) {
+function TranscriptView({ transcript, plainTranscript, isLive, transcriptEndRef }) {
+  if ((!transcript || transcript.length === 0) && !plainTranscript) {
     return (
       <div style={{ padding: 32, textAlign: 'center', color: '#a1a1aa', fontSize: 13 }}>
-        No transcript available yet.
+        {isLive ? (
+          <div>
+            <div style={{ marginBottom: 8, fontSize: 12, color: '#71717a' }}>Waiting for conversation...</div>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
+              {[0,1,2].map(i => (
+                <div key={i} style={{
+                  width: 6, height: 6, borderRadius: '50%', background: '#93c5fd',
+                  animation: 'liveDot 1.2s infinite', animationDelay: `${i * 0.2}s`,
+                }} />
+              ))}
+            </div>
+          </div>
+        ) : 'No transcript available.'}
+      </div>
+    )
+  }
+
+  // Fall back to plain transcript string if no structured transcript_object
+  if ((!transcript || transcript.length === 0) && plainTranscript) {
+    return (
+      <div style={{ maxHeight: 360, overflowY: 'auto', padding: '12px 16px' }}>
+        <div style={{ fontSize: 13, lineHeight: 1.6, color: '#09090b', whiteSpace: 'pre-wrap' }}>
+          {plainTranscript}
+        </div>
+        <div ref={transcriptEndRef} />
       </div>
     )
   }
@@ -131,12 +155,20 @@ export default function CallCenter() {
         if (data.call_status === 'ended' || data.call_status === 'error') {
           clearInterval(pollRef.current)
           pollRef.current = null
+          // Re-fetch after 3s to get final transcript + recording (Retell processes post-call)
+          setTimeout(async () => {
+            try {
+              const finalRes = await fetch(`/api/calls/${activeCall.call_id}/live`)
+              const finalData = await finalRes.json()
+              setLiveData(finalData)
+            } catch {}
+          }, 3000)
         }
       } catch {}
     }
 
     poll()
-    pollRef.current = setInterval(poll, 2000)
+    pollRef.current = setInterval(poll, 1000)
 
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
@@ -380,6 +412,8 @@ export default function CallCenter() {
               }}>
                 <TranscriptView
                   transcript={liveData?.transcript_object}
+                  plainTranscript={liveData?.transcript}
+                  isLive={!callEnded}
                   transcriptEndRef={transcriptEndRef}
                 />
               </div>
@@ -455,6 +489,10 @@ export default function CallCenter() {
                 @keyframes livePulse {
                   0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(34,197,94,0.4); }
                   50% { opacity: 0.6; box-shadow: 0 0 0 4px rgba(34,197,94,0); }
+                }
+                @keyframes liveDot {
+                  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+                  40% { opacity: 1; transform: scale(1); }
                 }
               `}</style>
             </>
@@ -543,6 +581,8 @@ export default function CallCenter() {
               }}>
                 <TranscriptView
                   transcript={viewingCall.transcript_object}
+                  plainTranscript={viewingCall.transcript}
+                  isLive={false}
                   transcriptEndRef={transcriptEndRef}
                 />
               </div>
