@@ -9,7 +9,7 @@ import CallCenter from './components/CallCenter'
 import CRM from './components/CRM'
 
 const NAV = [
-  { id: 'dashboard', label: 'Overview' },
+  { id: 'dashboard', label: 'Dashboard' },
   { id: 'prospects', label: 'Prospects' },
   { id: 'calls', label: 'Call Center' },
   { id: 'crm', label: 'CRM' },
