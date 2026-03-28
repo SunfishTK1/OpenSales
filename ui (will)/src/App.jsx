@@ -5,10 +5,12 @@ import ProspectDetail from './components/ProspectDetail'
 import ActivityFeed from './components/ActivityFeed'
 import TaskQueue from './components/TaskQueue'
 import OnboardingWizard from './components/OnboardingWizard'
+import CallCenter from './components/CallCenter'
 
 const NAV = [
   { id: 'dashboard', label: 'Overview' },
   { id: 'prospects', label: 'Prospects' },
+  { id: 'calls', label: 'Call Center' },
   { id: 'activity', label: 'Activity' },
   { id: 'tasks', label: 'Approvals' },
 ]
@@ -136,6 +138,7 @@ export default function App() {
         <div style={{ padding: '24px 28px', maxWidth: 1080 }}>
           {view === 'dashboard' && <Dashboard />}
           {view === 'prospects' && <ProspectTable onSelect={handleSelectProspect} />}
+          {view === 'calls' && <CallCenter />}
           {view === 'activity' && <ActivityFeed />}
           {view === 'tasks' && <TaskQueue />}
         </div>

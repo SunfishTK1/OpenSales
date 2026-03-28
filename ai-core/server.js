@@ -13,6 +13,15 @@ const app = express();
 app.use(express.json());
 app.use(express.static(join(__dirname, 'public')));
 
+// CORS — allow UI dev server
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
+  next();
+});
+
 const upload = multer({ storage: multer.memoryStorage() });
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -394,6 +403,98 @@ app.post('/api/calls/sync', async (req, res) => {
     }
 
     res.json({ synced: saved, total: calls.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Agent & Phone Number management ────────────────────────────────────────
+
+// List all Retell voice agents
+app.get('/api/agents', async (req, res) => {
+  if (!RETELL_API_KEY) return res.status(500).json({ error: 'RETELL_API_KEY not set' });
+  try {
+    const retellRes = await fetch('https://api.retellai.com/list-agents', {
+      headers: RETELL_HEADERS,
+    });
+    if (!retellRes.ok) {
+      const err = await retellRes.text();
+      return res.status(retellRes.status).json({ error: err });
+    }
+    res.json(await retellRes.json());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// List Retell phone numbers
+app.get('/api/phone-numbers', async (req, res) => {
+  if (!RETELL_API_KEY) return res.status(500).json({ error: 'RETELL_API_KEY not set' });
+  try {
+    const retellRes = await fetch('https://api.retellai.com/v2/list-phone-numbers', {
+      headers: RETELL_HEADERS,
+    });
+    if (!retellRes.ok) {
+      const err = await retellRes.text();
+      return res.status(retellRes.status).json({ error: err });
+    }
+    const data = await retellRes.json();
+    // Retell wraps results in { items: [...] }
+    res.json(data.items || data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Launch an outbound phone call via Retell
+app.post('/api/calls/launch', async (req, res) => {
+  if (!RETELL_API_KEY) return res.status(500).json({ error: 'RETELL_API_KEY not set' });
+
+  const { from_number, to_number, agent_id, dynamic_variables, metadata } = req.body;
+  if (!from_number || !to_number) {
+    return res.status(400).json({ error: 'from_number and to_number are required' });
+  }
+
+  try {
+    const body = {
+      from_number,
+      to_number,
+      ...(agent_id && { override_agent_id: agent_id }),
+      ...(dynamic_variables && { retell_llm_dynamic_variables: dynamic_variables }),
+      ...(metadata && { metadata }),
+    };
+
+    const retellRes = await fetch('https://api.retellai.com/v2/create-phone-call', {
+      method: 'POST',
+      headers: RETELL_HEADERS,
+      body: JSON.stringify(body),
+    });
+
+    if (!retellRes.ok) {
+      const err = await retellRes.text();
+      return res.status(retellRes.status).json({ error: err });
+    }
+
+    res.status(201).json(await retellRes.json());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get live call data from Retell (for real-time polling during active calls)
+app.get('/api/calls/:callId/live', async (req, res) => {
+  if (!RETELL_API_KEY) return res.status(500).json({ error: 'RETELL_API_KEY not set' });
+
+  try {
+    const retellRes = await fetch(
+      `https://api.retellai.com/v2/get-call/${req.params.callId}`,
+      { headers: RETELL_HEADERS }
+    );
+    if (!retellRes.ok) {
+      const err = await retellRes.text();
+      return res.status(retellRes.status).json({ error: err });
+    }
+    res.json(await retellRes.json());
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
