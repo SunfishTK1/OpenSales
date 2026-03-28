@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find \"C:\\\\Users\\\\willi\\\\OneDrive\\\\Personal Projects\\\\venturehacks26\\\\OpenSales\\\\ui \\(will\\)\" -type f -name \"*.json\" -o -name \"*.tsx\" -o -name \"*.ts\" -o -name \"*.jsx\" -o -name \"*.js\")",
+      "mcp__supabase__get_project_url",
+      "mcp__supabase__get_publishable_keys",
+      "mcp__supabase__list_tables",
+      "Bash(npm create:*)",
+      "Bash(ls:*)",
+      "Bash(npx create-vite@latest . --template react)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)"
+    ]
+  }
+}
