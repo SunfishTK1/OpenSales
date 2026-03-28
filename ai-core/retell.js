@@ -103,7 +103,7 @@ function buildConversationFlow(cfg) {
     start_speaker: 'agent',
     model_choice: {
       type: 'cascading',
-      model: 'gpt-4.1-mini',
+      model: 'gpt-5.4-mini',
     },
     global_prompt: buildGlobalPrompt(ci, pd, oh),
     start_node_id: 'welcome',
@@ -155,9 +155,9 @@ ${objections || '(handle objections naturally)'}
 
 function buildNodes(ci, pd, qual, tr, oh, fu) {
   const aeName = tr.closer?.role || 'Account Executive';
-  const aePhone = tr.closer?.phone || '';
+  const aePhone = tr.closer?.phone || '+18455448228';
   const seName = tr.technical?.role || 'Solutions Engineer';
-  const sePhone = tr.technical?.phone || '';
+  const sePhone = tr.technical?.phone || '+18455448228';
   const collateral = (fu.collateral || ['some resources']).join(', ');
   const followupTl = fu.follow_up_timeline || 'within 24 hours';
   const followupEmail = fu.reengagement_email || '';
@@ -315,7 +315,7 @@ Based on what you shared about your team, I think the most relevant features wou
         number: aePhone,
       },
       transfer_option: {
-        type: 'cold_transfer',
+        type: 'warm_transfer',
       },
       edge: {
         id: 'edge_ae_failed',
@@ -351,7 +351,7 @@ Based on what you shared about your team, I think the most relevant features wou
         number: sePhone,
       },
       transfer_option: {
-        type: 'cold_transfer',
+        type: 'warm_transfer',
       },
       edge: {
         id: 'edge_se_failed',

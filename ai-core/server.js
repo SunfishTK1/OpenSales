@@ -399,6 +399,40 @@ app.post('/api/calls/sync', async (req, res) => {
   }
 });
 
+// ─── Auto-sync calls from Retell every 60s ──────────────────────────────────
+
+const SYNC_INTERVAL_MS = 60_000;
+
+async function autoSyncCalls() {
+  if (!RETELL_API_KEY) return;
+
+  try {
+    const retellRes = await fetch('https://api.retellai.com/v2/list-calls', {
+      method: 'POST',
+      headers: RETELL_HEADERS,
+      body: JSON.stringify({ sort_order: 'descending', limit: 50 }),
+    });
+
+    if (!retellRes.ok) return;
+
+    const calls = await retellRes.json();
+    let saved = 0;
+
+    for (const call of calls) {
+      if (call.call_status !== 'ended') continue;
+
+      const row = callToRow(call);
+      const { error } = await supabase
+        .from('calls')
+        .upsert(row, { onConflict: 'call_id' });
+
+      if (!error) saved++;
+    }
+
+    if (saved > 0) console.log(`[auto-sync] ${saved} new call(s) saved`);
+  } catch { /* silent — will retry next interval */ }
+}
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3000;
@@ -406,4 +440,10 @@ app.listen(PORT, () => {
   console.log(`\n╔══════════════════════════════════════════════════════╗`);
   console.log(`║   OpenSales Onboarding — http://localhost:${PORT}      ║`);
   console.log(`╚══════════════════════════════════════════════════════╝\n`);
+
+  // Start auto-syncing calls
+  if (RETELL_API_KEY) {
+    setInterval(autoSyncCalls, SYNC_INTERVAL_MS);
+    console.log('  Call auto-sync enabled (every 60s)\n');
+  }
 });
