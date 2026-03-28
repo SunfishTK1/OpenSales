@@ -56,8 +56,8 @@ OpenSales/
 
 ## Minute 0–15: Everyone Together
 
-- [ ] Create Supabase project
-- [ ] Run this schema together:
+- [x] Create Supabase project
+- [x] Run this schema together:
 
 ```sql
 -- prospects / customer list (Person 4 owns, everyone reads)
@@ -127,7 +127,7 @@ create table company_config (
 );
 ```
 
-- [ ] Share Supabase URL + anon key in group chat
+- [x] Share Supabase URL + anon key in group chat
 - [ ] Everyone scaffolds their folder and confirms they can read/write to Supabase
 - [ ] Import initial customer list into `prospects` table
 - [ ] Split up and go
@@ -140,9 +140,9 @@ create table company_config (
 **Goal:** Show all data from the system. Human verifier element. This is what the judges SEE.
 
 ### Hour 1 (0:15–1:15)
-- [ ] Scaffold React + Vite + Tailwind, connect Supabase client
-- [ ] Build layout shell: sidebar + main content
-- [ ] **Dashboard home** — stat cards pulling from Supabase:
+- [x] Scaffold React + Vite + Tailwind, connect Supabase client
+- [x] Build layout shell: sidebar + main content
+- [x] **Dashboard home** — stat cards pulling from Supabase:
   - Total prospects in pipeline
   - Emails sent / opened / replied (hit rate)
   - Rejections count
@@ -151,15 +151,15 @@ create table company_config (
   - Deals in negotiation / closed
 
 ### Hour 2 (1:15–2:15)
-- [ ] **Prospect table** — list from `prospects` table
+- [x] **Prospect table** — list from `prospects` table
   - Columns: name, company, stage (color-coded badge), score, intent score, last contact
   - Click row → detail panel
-- [ ] **Agent activity feed** — live feed from `agent_runs`
+- [x] **Agent activity feed** — live feed from `agent_runs`
   - Supabase Realtime subscription so it updates live during demo
   - Show: "Researched Acme Corp — Score: 85", "Drafted cold email to John"
 
 ### Hour 3 (2:15–3:15)
-- [ ] **Prospect detail panel** — when you click a prospect:
+- [x] **Prospect detail panel** — when you click a prospect:
   - Full communication timeline (inbound + outbound from `communications`)
   - Stage progress bar across all 9 stages
   - Agent reasoning log (from `agent_runs`)
@@ -168,9 +168,9 @@ create table company_config (
 - [ ] **Pipeline Kanban** (if time) — columns for each stage, cards are prospects
 
 ### Hour 4 (3:15–4:00)
-- [ ] Make it demo-ready: loading states, empty states, nice typography
-- [ ] Add the onboarding wizard UI (renders Person 2's AI interrogation in a modal)
-- [ ] Verify all data flows show up correctly
+- [x] Make it demo-ready: loading states, empty states, nice typography
+- [x] Add the onboarding wizard UI (renders Person 2's AI interrogation in a modal)
+- [x] Verify all data flows show up correctly
 - [ ] Screen-record backup in case live demo breaks
 
 ---
