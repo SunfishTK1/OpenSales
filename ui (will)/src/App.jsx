@@ -7,6 +7,7 @@ import TaskQueue from './components/TaskQueue'
 import OnboardingWizard from './components/OnboardingWizard'
 import CallCenter from './components/CallCenter'
 import CRM from './components/CRM'
+import BusinessPlan from './components/BusinessPlan'
 
 const NAV = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -15,6 +16,7 @@ const NAV = [
   { id: 'crm', label: 'CRM' },
   { id: 'activity', label: 'Activity' },
   { id: 'tasks', label: 'Approvals' },
+  { id: 'plan', label: 'Business Plan' },
 ]
 
 export default function App() {
@@ -164,6 +166,7 @@ export default function App() {
           {view === 'crm' && <CRM />}
           {view === 'activity' && <ActivityFeed />}
           {view === 'tasks' && <TaskQueue />}
+          {view === 'plan' && <BusinessPlan />}
         </div>
       </main>
 
