@@ -432,7 +432,16 @@ async function syncRetellCalls() {
   return { total_supabase_calls: supabaseCalls.length, new_calls_synced: synced }
 }
 
-// POST /sync/calls — trigger from UI button
+// GET or POST /sync/calls — trigger from UI button or browser
+app.get('/sync/calls', async (req, res) => {
+  try {
+    const result = await syncRetellCalls()
+    res.json(result)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 app.post('/sync/calls', async (req, res) => {
   try {
     const result = await syncRetellCalls()
